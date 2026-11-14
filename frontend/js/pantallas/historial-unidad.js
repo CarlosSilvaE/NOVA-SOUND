@@ -3,15 +3,18 @@
 //   - Calidad  · Historial de la unidad (pages/calidad/historial-de-la-unidad.html)
 // Es solo consulta: cada pantalla le pasa su id de js/menu.js y se pinta en su propia área.
 //
-// Se busca por número de serie (escaneado o escrito a mano) y muestra: datos de la unidad,
-// recorrido del lote al embarque, historial de eventos y contenido de la caja.
+// Se busca por número de serie (escaneado o escrito a mano). Dos versiones:
+//   - Completa (Gerencia · Trazabilidad): datos de la unidad, recorrido del lote al embarque,
+//     historial de eventos y contenido de la caja.
+//   - Solo tabla ({ soloTabla: true }, Calidad · Historial de la unidad): únicamente la tabla del
+//     historial (Fecha, Hora, Área, Evento, Resultado, Usuario), como en el diseño de Calidad.
 
 import { montarPagina } from '../layout.js';
 import { unidadPorSerie, seriesDeEjemplo, ErrorApi } from '../api.js';
 import { boton, encabezado, tarjeta, tabla, chipUnidad, chip, aviso, cargarEn, estadoVacio } from '../componentes.js';
 import { esc, fechaCorta, num } from '../ui.js';
 
-export function iniciarHistorial(idPantalla) {
+export function iniciarHistorial(idPantalla, { soloTabla = false } = {}) {
   const pagina = montarPagina(idPantalla);
   if (!pagina) return;
   const { sesion, contenido } = pagina;
@@ -35,13 +38,13 @@ export function iniciarHistorial(idPantalla) {
   function buscar(serie) {
     const texto = serie.trim();
     if (!texto) {
-      zona.innerHTML = `<div class="tarjeta">${estadoVacio('Escribe o escanea un número de serie', 'Aquí aparecerá todo el recorrido de la unidad.')}</div>`;
+      zona.innerHTML = `<div class="tarjeta">${estadoVacio('Escribe o escanea un número de serie', soloTabla ? 'Aquí aparecerá el historial de la unidad.' : 'Aquí aparecerá todo el recorrido de la unidad.')}</div>`;
       return;
     }
     history.replaceState(null, '', `?serie=${encodeURIComponent(texto)}`);
     cargarEn(zona, async () => {
       try {
-        return htmlUnidad(await unidadPorSerie(texto));
+        return htmlUnidad(await unidadPorSerie(texto), soloTabla);
       } catch (error) {
         if (error instanceof ErrorApi && error.estado === 404) {
           return `<div class="tarjeta">${estadoVacio(error.message, 'Revisa que esté bien escrita o escanéala de nuevo.')}</div>`;
@@ -62,7 +65,7 @@ export function iniciarHistorial(idPantalla) {
     campoSerie.value = inicial;
     buscar(inicial);
   } else {
-    zona.innerHTML = `<div class="tarjeta">${estadoVacio('Busca una unidad para ver su recorrido', 'Escribe o escanea el número de serie.')}</div>`;
+    zona.innerHTML = `<div class="tarjeta">${estadoVacio(soloTabla ? 'Busca una unidad para ver su historial' : 'Busca una unidad para ver su recorrido', 'Escribe o escanea el número de serie.')}</div>`;
   }
 
   // Solo en modo ejemplo: atajos con series de prueba.
@@ -169,7 +172,7 @@ function htmlCaja(u) {
     <ul class="mt-4 flex flex-wrap gap-2" aria-label="Series dentro de la caja">${series}</ul>`;
 }
 
-function htmlUnidad(u) {
+function htmlUnidad(u, soloTabla = false) {
   const datos = `
     <dl class="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
       ${dato('Serie', `<span class="tabular-nums">${esc(u.serie)}</span>`)}
@@ -196,6 +199,8 @@ function htmlUnidad(u) {
       { titulo: 'Usuario', campo: 'usuario' },
     ],
   });
+
+  if (soloTabla) return tarjeta(`Historial de ${u.serie}`, historial, { relleno: false });
 
   return `
     ${tarjeta('Datos de la unidad', datos)}

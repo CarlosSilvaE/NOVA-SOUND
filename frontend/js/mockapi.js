@@ -188,9 +188,16 @@ export async function resolverAutorizacion(id, { decision, motivo = '' }) {
   return { ok: true };
 }
 
+// Las unidades que Calidad trabaja (mock/calidad.json) tienen prioridad sobre las de mock/unidades.json.
+async function todasLasUnidades() {
+  const deCalidad = (await coleccion('calidad')).unidades;
+  const series = new Set(deCalidad.map((u) => u.serie));
+  return [...deCalidad, ...(await leerJSON('unidades')).filter((u) => !series.has(u.serie))];
+}
+
 export async function unidadPorSerie(serie) {
   await pausa();
-  const unidades = await leerJSON('unidades');
+  const unidades = await todasLasUnidades();
   const q = normalizar(serie);
   let u = unidades.find((x) => normalizar(x.serie) === q);
   if (!u && q.length >= 3) {
@@ -207,8 +214,9 @@ export async function unidadPorSerie(serie) {
 }
 
 export async function seriesDeEjemplo() {
-  const unidades = await leerJSON('unidades');
-  return unidades.map((u) => ({ serie: u.serie, estado: u.estado }));
+  const ejemplos = new Set((await leerJSON('unidades')).map((u) => u.serie));
+  const unidades = await todasLasUnidades();
+  return unidades.filter((u) => ejemplos.has(u.serie)).map((u) => ({ serie: u.serie, estado: u.estado }));
 }
 
 // ---------------------------------------------------------------- Tickets

@@ -15,6 +15,7 @@ import { USE_MOCKS, API_BASE_URL } from './config.js';
 import { obtenerSesion, cerrarSesion } from './session.js';
 import { ErrorApi } from './errores.js';
 import * as mock from './mockapi.js';
+import * as mockCalidad from './mockapi-calidad.js';
 
 export { ErrorApi };
 export { reiniciarMocks } from './mockdb.js';
@@ -94,6 +95,43 @@ export const resolverAutorizacion = (id, datos) =>
 
 // Datos de la unidad + historial + caja + embarque. 404 si la serie no existe.
 export const unidadPorSerie = (serie) => (USE_MOCKS ? mock.unidadPorSerie(serie) : pedir(`/unidades/${encodeURIComponent(serie)}`));
+
+// ---------------------------------------------------------------- Calidad
+// Siempre es el día de hoy. filtros: { turno, linea } (vacío = todos)
+// → { disposiciones: { liberadas, retenidas, retrabajo, scrap },
+//     defectosPorCategoria: [{ categoria, cantidad, porcentaje }],
+//     pendientes: [{ serie, modelo, color, lote, linea, turno, hora, fecha }]  (unidades probadas que esperan inspección) }
+export const resumenCalidad = (filtros) => (USE_MOCKS ? mockCalidad.resumenCalidad(filtros) : pedir(`/calidad/resumen${consulta(filtros)}`));
+
+// Inspección de una unidad en estado PROBADA (los datos de la unidad salen de unidadPorSerie).
+// datos: { defectos: [{ categoria, defecto, causa }], observaciones, disposicion: 'LIBERADA' | 'EN_RETENCION' | 'RETRABAJO' | 'SCRAP' }
+// Para liberar no puede haber defectos; para las demás disposiciones, al menos uno. Necesita la acción de disposición de Calidad.
+export const guardarInspeccion = (serie, datos) =>
+  USE_MOCKS ? mockCalidad.guardarInspeccion(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/inspeccion`, { metodo: 'POST', cuerpo: datos });
+
+// filtros: { q (serie), linea, modelo, fecha: 'YYYY-MM-DD' }
+// → { filas: [{ serie, modelo, color, orden, lote, linea, turno, fecha, hora, inspector, categoria, motivo, observaciones }],
+//     resumen: { retenidas, retenidasHoy } }
+export const retenciones = (filtros) => (USE_MOCKS ? mockCalidad.retenciones(filtros) : pedir(`/calidad/retenciones${consulta(filtros)}`));
+
+// datos: { disposicion: 'LIBERADA' (liberar) | 'RETRABAJO' (enviar a retrabajo) | 'EN_RETENCION' (mantener) | 'SCRAP', observaciones }
+// Salvo «mantener», las observaciones son obligatorias (queda quién, cuándo y por qué).
+export const resolverRetencion = (serie, datos) =>
+  USE_MOCKS ? mockCalidad.resolverRetencion(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/retencion/resolver`, { metodo: 'POST', cuerpo: datos });
+
+// filtros: { q (serie), linea, modelo, fecha, estado: 'Pendiente' | 'Finalizado' }
+// → { filas: [{ serie, modelo, color, orden, lote, linea, turno, fecha, estado, categoria, motivo, causa, fechaRetrabajo, descripcion, resultado, observaciones }],
+//     resumen: { pendientes, finalizadas } }
+export const retrabajos = (filtros) => (USE_MOCKS ? mockCalidad.retrabajos(filtros) : pedir(`/calidad/retrabajos${consulta(filtros)}`));
+
+// datos: { descripcion, resultado: 'Corregido' | 'No corregido', observaciones }. La unidad vuelve a Calidad para una nueva inspección.
+export const guardarRetrabajo = (serie, datos) =>
+  USE_MOCKS ? mockCalidad.guardarRetrabajo(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/retrabajo`, { metodo: 'POST', cuerpo: datos });
+
+// filtros: { desde, hasta, turno, linea, modelo }
+// → { desde, hasta, total, disposiciones: { liberadas, retenidas, retrabajo, scrap }, totalDefectos,
+//     defectosPorCategoria: [{ categoria, cantidad, porcentaje }], detalleDefectos: [{ categoria, defecto, cantidad, porcentaje }] }
+export const reporteCalidad = (filtros) => (USE_MOCKS ? mockCalidad.reporteCalidad(filtros) : pedir(`/calidad/reportes${consulta(filtros)}`));
 
 // ---------------------------------------------------------------- Tickets de soporte
 // Se llama SIN sesión (la persona no puede entrar). Devuelve { id }.
