@@ -7,6 +7,7 @@ import { coleccion, guardarColeccion, leerJSON, pausa } from './mockdb.js';
 import { ErrorApi } from './errores.js';
 import { fechaRelativa, diasEntre, hoyISO, normalizar } from './ui.js';
 import { obtenerSesion } from './session.js';
+import { metricasProduccion, resolverSolicitud } from './mockapi-operacion.js';
 
 const suma = (filas, campo) => filas.reduce((t, f) => t + (f[campo] || 0), 0);
 const ahoraHora = () => new Date().toTimeString().slice(0, 5);
@@ -56,7 +57,11 @@ export async function opciones() {
 // ---------------------------------------------------------------- Gerencia
 export async function dashboard(f = {}) {
   await pausa();
-  const [prod, def, ords] = await Promise.all([leerJSON('produccion'), leerJSON('defectos'), leerJSON('ordenes')]);
+  const [prod, def, ordenesBase, calidad, operacion] = await Promise.all([metricasProduccion(), leerJSON('defectos'), coleccion('ordenes'), coleccion('calidad'), coleccion('operacion')]);
+  const ords = ordenesBase.map(o => ({ ...o, producidas: o.producidas + calidad.unidades.filter(u => u.nueva && u.orden === o.id).length,
+    cajas: { preparadas: o.cajas.preparadas + operacion.cajas.filter(c => c.orden === o.id && c.estado === 'Cerrada').length,
+      pendientes: o.cajas.pendientes + operacion.cajas.filter(c => c.orden === o.id && c.estado === 'Abierta').length,
+      embarcadas: o.cajas.embarcadas + operacion.cajas.filter(c => c.orden === o.id && c.estado === 'Embarcada').length } }));
   const cumple = (r) =>
     (!f.turno || r.turno === Number(f.turno)) &&
     (!f.linea || r.linea === f.linea) &&
@@ -111,7 +116,7 @@ export async function dashboard(f = {}) {
 
 export async function discrepancias(f = {}) {
   await pausa();
-  const prod = await leerJSON('produccion');
+  const prod = await metricasProduccion();
   const dia = diasEntre(f.fecha || hoyISO(), hoyISO());
   const filas = prod.filter((r) => r.dia === dia && (!f.turno || r.turno === Number(f.turno)));
   const vista = f.vista || 'lote';
@@ -132,7 +137,8 @@ export async function discrepancias(f = {}) {
 
 export async function cierresTurno(f = {}) {
   await pausa();
-  const prod = await leerJSON('produccion');
+  const prod = await metricasProduccion();
+  const operacion = await coleccion('operacion');
   const desde = f.desde || fechaRelativa(-6);
   const hasta = f.hasta || hoyISO();
   const grupos = agrupar(
@@ -143,6 +149,8 @@ export async function cierresTurno(f = {}) {
     (r) => `${r.dia}|${r.turno}|${r.linea}`,
   );
   const filas = [...grupos.values()].map((rs) => {
+    const fecha = fechaRelativa(-rs[0].dia);
+    const cierre = operacion.cierres.findLast(c => c.fecha === fecha && c.linea === rs[0].linea && c.turno === rs[0].turno);
     const reportadas = suma(rs, 'reportadas');
     const empacadas = suma(rs, 'recibidas');
     const retenidas = suma(rs, 'retenidas');
@@ -150,7 +158,8 @@ export async function cierresTurno(f = {}) {
     const scrap = suma(rs, 'scrap');
     const diferencia = reportadas - empacadas;
     return {
-      fecha: fechaRelativa(-rs[0].dia), turno: rs[0].turno, linea: rs[0].linea,
+      fecha, turno: rs[0].turno, linea: rs[0].linea,
+      estado: cierre?.estado || (fecha < hoyISO() ? 'Histórico' : 'Sin confirmar'), nota: cierre?.nota || '',
       reportadas, empacadas, retenidas, retrabajo, scrap, diferencia,
       sinExplicar: diferencia - retenidas - retrabajo - scrap,
     };
@@ -164,8 +173,8 @@ export async function autorizaciones() {
   const lista = await coleccion('autorizaciones');
   const conFechas = (a) => ({
     ...a,
-    fecha: fechaRelativa(-a.dia),
-    fechaResolucion: a.diaResolucion != null ? fechaRelativa(-a.diaResolucion) : null,
+    fecha: a.fechaRegistro || fechaRelativa(-a.dia),
+    fechaResolucion: a.fechaResolucion || (a.diaResolucion != null ? fechaRelativa(-a.diaResolucion) : null),
   });
   return {
     pendientes: lista.filter((a) => a.estado === 'Pendiente').map(conFechas).sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)),
@@ -174,18 +183,7 @@ export async function autorizaciones() {
 }
 
 export async function resolverAutorizacion(id, { decision, motivo = '' }) {
-  await pausa(300);
-  const lista = await coleccion('autorizaciones');
-  const a = lista.find((x) => x.id === id);
-  if (!a || a.estado !== 'Pendiente') throw new ErrorApi('Esa solicitud ya fue resuelta.', 409);
-  const sesion = obtenerSesion();
-  a.estado = decision === 'aprobar' ? 'Aprobada' : 'Rechazada';
-  a.resolvio = { nombre: sesion?.usuario.nombre || '—', rol: sesion?.usuario.rol || '—' };
-  a.diaResolucion = 0;
-  a.horaResolucion = ahoraHora();
-  a.motivoResolucion = motivo;
-  guardarColeccion('autorizaciones', lista);
-  return { ok: true };
+  return resolverSolicitud(id, { decision, motivo });
 }
 
 // Las unidades que Calidad trabaja (mock/calidad.json) tienen prioridad sobre las de mock/unidades.json.
@@ -207,9 +205,9 @@ export async function unidadPorSerie(serie) {
   if (!u) throw new ErrorApi(`No se encontró la serie «${serie}».`, 404);
   return {
     ...u,
-    fecha: fechaRelativa(-u.dia),
-    embarque: u.embarque ? { ...u.embarque, fechaSalida: fechaRelativa(-u.embarque.fechaSalidaDias) } : null,
-    historial: u.historial.map((e) => ({ ...e, fecha: fechaRelativa(-e.dia) })),
+    fecha: u.fechaRegistro || fechaRelativa(-u.dia),
+    embarque: u.embarque ? { ...u.embarque, fechaSalida: u.embarque.fechaSalida || fechaRelativa(-u.embarque.fechaSalidaDias) } : null,
+    historial: u.historial.map((e) => ({ ...e, fecha: e.fecha || fechaRelativa(-e.dia) })),
   };
 }
 

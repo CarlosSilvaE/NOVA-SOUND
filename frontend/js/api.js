@@ -16,6 +16,7 @@ import { obtenerSesion, cerrarSesion } from './session.js';
 import { ErrorApi } from './errores.js';
 import * as mock from './mockapi.js';
 import * as mockCalidad from './mockapi-calidad.js';
+import * as mockOperacion from './mockapi-operacion.js';
 
 export { ErrorApi };
 export { reiniciarMocks } from './mockdb.js';
@@ -168,3 +169,7 @@ export const cambiarEstadoCatalogo = (tipo, codigo, estado) =>
 // { capacidadCaja: { 'NS-MINI': 12, … }, ultimoCambio: { por, fecha, hora, motivo } }
 export const parametros = () => (USE_MOCKS ? mock.parametros() : pedir('/parametros'));
 export const guardarParametros = (datos) => (USE_MOCKS ? mock.guardarParametros(datos) : pedir('/parametros', { metodo: 'PUT', cuerpo: datos }));
+
+// Contrato común de las pantallas operativas. La demo funciona sin servidor de API.
+export const consultarOperacion = () => USE_MOCKS ? mockOperacion.consultarOperacion() : pedir('/operacion');
+export const operar = (accion, datos) => USE_MOCKS ? mockOperacion.operar(accion, datos) : pedir(`/operacion/${encodeURIComponent(accion)}`, { metodo: 'POST', cuerpo: datos });

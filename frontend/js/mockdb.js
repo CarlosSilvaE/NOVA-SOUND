@@ -27,17 +27,44 @@ export async function coleccion(nombre) {
   } catch (e) {
     guardado = memoria[nombre] ?? null;
   }
-  return guardado ? JSON.parse(guardado) : leerJSON(nombre);
+  const datos = guardado ? JSON.parse(guardado) : await leerJSON(nombre);
+  // Los datos capturados conservan su fecha real al abrir la demo otro día.
+  const filas = Array.isArray(datos) ? datos : datos.unidades;
+  if (Array.isArray(filas)) filas.forEach(f => {
+    const fecha = f.fechaRegistro || f.fecha;
+    if (fecha) {
+      const ahora = new Date(); ahora.setHours(12, 0, 0, 0);
+      f.dia = Math.round((ahora - new Date(`${fecha}T12:00:00`)) / 86400000);
+    }
+  });
+  // Migración única del registro de pantallas para las demos ya guardadas.
+  if (nombre === 'roles-permisos' && !datos.version) {
+    const almacen = datos.roles.find(r => r.nombre === 'Almacén/Empaque');
+    if (almacen) for (const id of ['embarques/cierre-de-caja-escaneo', 'embarques/confirmacion-de-cierre-de-caja']) almacen.permisos[id] = 'acciona';
+    datos.version = 2;
+    if (guardado) guardarColeccion(nombre, datos);
+  }
+  return datos;
 }
 
-export function guardarColeccion(nombre, datos) {
-  const texto = JSON.stringify(datos);
+export function guardarColecciones(colecciones) {
+  const anteriores = new Map();
   try {
-    localStorage.setItem(PREFIJO + nombre, texto);
+    const cambios = Object.entries(colecciones).map(([nombre, datos]) => [PREFIJO + nombre, JSON.stringify(datos)]);
+    cambios.forEach(([clave]) => anteriores.set(clave, localStorage.getItem(clave)));
+    cambios.forEach(([clave, texto]) => localStorage.setItem(clave, texto));
   } catch (e) {
-    memoria[nombre] = texto;
+    // Evita confirmar una operación a medias si el navegador no puede guardar.
+    anteriores.forEach((texto, clave) => {
+      try { texto === null ? localStorage.removeItem(clave) : localStorage.setItem(clave, texto); } catch (_) { /* conservar el error original */ }
+    });
+    throw new Error('No se pudieron guardar los cambios en este navegador. Revisa el espacio y el permiso de almacenamiento antes de continuar.');
   }
 }
+
+export const guardarColeccion = (nombre, datos) => guardarColecciones({ [nombre]: datos });
+
+export const conEscritura = tarea => globalThis.navigator?.locks ? navigator.locks.request('novasound.operacion', tarea) : tarea();
 
 // Borra todo lo que se cambió durante las pruebas.
 export function reiniciarMocks() {

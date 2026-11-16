@@ -70,6 +70,8 @@
         "empaque/reportes-de-empaque": "ver",
         "embarques/armar-embarque": "acciona",
         "embarques/paquetes-en-embarcacion": "acciona",
+        "embarques/cierre-de-caja-escaneo": "acciona",
+        "embarques/confirmacion-de-cierre-de-caja": "acciona",
         "embarques/estado-del-embarque": "ver",
         "embarques/rastreo-de-contenedor": "ver",
         "embarques/grafica-de-embarques": "ver"
@@ -407,5 +409,6 @@
       "id": "administrar-usuarios-roles-catalogos-y-parametros",
       "nombre": "Administrar usuarios, roles, catálogos y parámetros"
     }
-  ]
+  ],
+  "version": 2
 }

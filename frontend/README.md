@@ -5,7 +5,7 @@ HTML + Tailwind CSS + JavaScript sin framework. No hay que instalar nada ni comp
 ## Cómo abrirlo
 
 1. Abre una terminal en esta carpeta.
-2. Corre `python3 -m http.server 8000`.
+2. Corre `python -m http.server 8000` (o `python3 -m http.server 8000` en Linux/macOS).
 3. Entra a <http://localhost:8000>.
 
 No sirve abrir `index.html` con doble clic: el navegador bloquea los módulos de JavaScript si el archivo viene de `file://`. (También funciona la extensión Live Server de VS Code.)
@@ -27,9 +27,36 @@ No sirve abrir `index.html` con doble clic: el navegador bloquea los módulos de
 | 4002 | Supervisor de almacén | Empaque |
 | 1003 | Operador con cuenta **bloqueada** (para probar el aviso y «Levantar ticket») | — |
 
-**Qué incluye esta entrega:** Login, Levantar ticket y el área de Gerencia completa (Dashboard, Discrepancias, Autorizaciones, Trazabilidad y Cierres de turno). Las demás pantallas abren «pendiente» hasta que alguien las haga y marque `lista: true`. Por eso 9001, 1001, 3001, etc. aterrizan en esa pantalla.
+**Qué incluye esta entrega:** las pantallas de Erik y Jesús integradas, con Producción, Prueba funcional, Calidad, Empaque, Embarques, Gerencia y Sistemas. `USE_MOCKS = true` permite ejecutar el recorrido completo sin backend. Los registros se conservan en el almacenamiento local del navegador, en el mismo perfil y dirección del sitio.
 
 En la pantalla de login hay un panel con estos mismos usuarios y un botón para **restablecer los datos de ejemplo** (los cambios que haces se guardan en el navegador).
+
+## Probar el recorrido completo sin backend
+
+1. Como **1001**, abre Producción → Registrar producción. Elige una orden y un turno, escribe lote y serie única. La orden determina línea, modelo, cliente y color.
+2. Con el mismo usuario, cambia al área Prueba funcional → Unidades por probar. Abre Registrar prueba, evalúa encendido, audio, carga y Bluetooth y guarda. Una falla requiere observaciones y queda disponible para repetir la prueba; una aprobación pasa a Calidad.
+3. Cierra sesión y entra como **3001**. Cambia al área Calidad → Resumen de calidad o busca la serie en Inspección de unidad. Da la disposición **Liberada** para continuar. Retención, retrabajo y scrap impiden empacar.
+4. Como **4001**, abre Empaque → Formar caja. Crea una caja para la misma orden y agrega la serie. El contenido se conserva al cambiar de pantalla. Cierra la caja; si está incompleta es obligatorio indicar el motivo.
+5. Cambia al área Embarques → Armar embarque. Crea el embarque para esa orden, indica destino y contenedor, asigna la caja cerrada y confirma su salida.
+6. Como **5002**, consulta Gerencia → Trazabilidad con la misma serie. El historial muestra producción, prueba, inspección, caja y salida.
+
+Los datos de ejemplo históricos se conservan. La cola de pruebas empieza vacía hasta registrar unidades nuevas; las cajas y los embarques nuevos se consultan en todas las pantallas de sus áreas. Usa los enlaces «Continuar» o «Ver embarque» para retomar registros guardados.
+
+El **2001** puede cerrar una línea y turno; el registro de unidades para ese turno queda bloqueado. Para corregir el conteo o reabrirlo, envía una solicitud desde Producción → Solicitar ajuste y resuélvela como **5001** o **5002** en Gerencia → Autorizaciones. Las solicitudes y sus resoluciones se conservan. Los cambios de capacidad de **9001** en Sistemas → Parámetros se aplican a las cajas abiertas y a las cajas nuevas. Las cajas ya cerradas conservan la capacidad con la que se cerraron.
+
+Si ya tenías sesión abierta antes de actualizar el frontend, sal y vuelve a entrar para cargar los permisos de las dos pantallas nuevas de Embarques. La migración de permisos conserva los demás datos guardados.
+
+La persistencia es local: otro navegador, perfil, puerto o equipo tiene datos independientes. Borrar los datos del sitio o usar «Restablecer los datos de ejemplo» elimina los cambios de esta demo.
+
+## Verificación automática
+
+Desde la raíz del repositorio, con Node.js 22 o superior y Edge/Chrome instalado:
+
+```powershell
+node frontend/tests/frontend.test.mjs
+```
+
+No instala paquetes. Inicia un servidor local y un perfil temporal del navegador, recorre las 41 pantallas con sus roles y verifica el flujo completo, persistencia, validaciones, concurrencia, permisos, cierres y autorizaciones. Cierra el servidor y el navegador al terminar y muestra la ruta temporal de los resultados. Puedes definir `NOVA_TEST_BROWSER` con la ruta del navegador si no está en una ubicación habitual.
 
 ## Cómo hacer tu pantalla (3 pasos)
 

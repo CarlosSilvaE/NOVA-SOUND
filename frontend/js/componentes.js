@@ -19,6 +19,8 @@ export function chip(texto, variante = 'neutro') {
 
 // Estados de la unidad (los mismos que usa el back).
 export const ESTADOS_UNIDAD = {
+  ENSAMBLADA: ['Pendiente de prueba', 'neutro'],
+  FALLA_FUNCIONAL: ['Falla funcional', 'retrabajo'],
   PROBADA: ['Probada', 'probada'],
   LIBERADA: ['Liberada', 'liberada'],
   EN_RETENCION: ['En retención', 'retencion'],

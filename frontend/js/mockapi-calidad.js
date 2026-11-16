@@ -7,7 +7,7 @@
 // mock/produccion.json y mock/defectos.json para que las cifras cuadren con el Dashboard de Gerencia.
 // Lo que se cambie al probar (inspecciones, retenciones resueltas…) se guarda en el navegador.
 
-import { coleccion, guardarColeccion, leerJSON, pausa } from './mockdb.js';
+import { coleccion, guardarColeccion, leerJSON, pausa, conEscritura } from './mockdb.js';
 import { ErrorApi } from './errores.js';
 import { fechaRelativa, hoyISO } from './ui.js';
 import { obtenerSesion } from './session.js';
@@ -40,7 +40,7 @@ const buscarUnidad = (unidades, serie) => {
 // ---------------------------------------------------------------- Cifras de un rango de días
 // Base: filas de producción. Ajuste: lo que Calidad movió hoy en pantalla (unidades de hoy que cambiaron de estado).
 async function cifras({ dias, turno, linea, modelo }) {
-  const [prod, def, unidades] = await Promise.all([leerJSON('produccion'), leerJSON('defectos'), leerUnidades()]);
+  const [prod, def, unidades] = await Promise.all([coleccion('produccion'), leerJSON('defectos'), leerUnidades()]);
   const cumple = (r) => (!turno || r.turno === Number(turno)) && (!linea || r.linea === linea) && (!modelo || r.modelo === modelo);
   const enRango = (r) => dias.includes(r.dia) && cumple(r);
 
@@ -48,7 +48,7 @@ async function cifras({ dias, turno, linea, modelo }) {
   const disp = { liberadas: suma(filas, 'liberadas'), retenidas: suma(filas, 'retenidas'), retrabajo: suma(filas, 'retrabajo'), scrap: suma(filas, 'scrap') };
 
   const tocadas = unidades.filter((u) => dias.includes(u.dia) && cumple(u));
-  const clave = { LIBERADA: 'liberadas', EN_RETENCION: 'retenidas', RETRABAJO: 'retrabajo', SCRAP: 'scrap' };
+  const clave = { LIBERADA: 'liberadas', EMPACADA: 'liberadas', EMBARCADA: 'liberadas', EN_RETENCION: 'retenidas', RETRABAJO: 'retrabajo', SCRAP: 'scrap' };
   tocadas.forEach((u) => {
     if (u.estado !== u.estadoOriginal) {
       if (clave[u.estado]) disp[clave[u.estado]] += 1;
@@ -88,7 +88,7 @@ export async function resumenCalidad(f = {}) {
 // ---------------------------------------------------------------- Inspección de unidad
 // defectos: [{ categoria, defecto, causa }]. disposicion: 'LIBERADA' | 'EN_RETENCION' | 'RETRABAJO' | 'SCRAP'.
 // Solo se inspecciona una unidad en estado PROBADA. Para liberar no debe haber defectos; para el resto, al menos uno.
-export async function guardarInspeccion(serie, { defectos = [], observaciones = '', disposicion }) {
+async function inspeccionar(serie, { defectos = [], observaciones = '', disposicion }) {
   await pausa(350);
   const inspector = exigirPermiso();
   const unidades = await leerUnidades();
@@ -107,7 +107,7 @@ export async function guardarInspeccion(serie, { defectos = [], observaciones = 
   u.observaciones = observaciones;
   if (disposicion === 'EN_RETENCION') u.retencion = { dia: 0, hora, motivo: defectos[0].defecto, observaciones };
   if (disposicion === 'RETRABAJO') u.retrabajo = { estado: 'Pendiente', dia: 0, hora, descripcion: '', resultado: null, observaciones: '' };
-  u.historial.push({ dia: 0, hora, area: 'Calidad', evento: 'Inspección final', resultado: nombres ? `${ETIQUETA[disposicion]} · ${nombres}` : ETIQUETA[disposicion], usuario: inspector });
+  u.historial.push({ dia: 0, fecha: hoyISO(), hora, area: 'Calidad', evento: 'Inspección final', resultado: nombres ? `${ETIQUETA[disposicion]} · ${nombres}` : ETIQUETA[disposicion], usuario: inspector });
   guardarUnidades(unidades);
   return { ok: true, estado: disposicion };
 }
@@ -142,7 +142,7 @@ export async function retenciones(f = {}) {
 
 // disposicion: 'LIBERADA' (liberar) | 'RETRABAJO' (enviar a retrabajo) | 'EN_RETENCION' (mantener) | 'SCRAP'.
 // Salvo «mantener», siempre hay observaciones: queda quién, cuándo y por qué.
-export async function resolverRetencion(serie, { disposicion, observaciones = '' }) {
+async function disponerRetencion(serie, { disposicion, observaciones = '' }) {
   await pausa(350);
   const inspector = exigirPermiso();
   const unidades = await leerUnidades();
@@ -155,11 +155,11 @@ export async function resolverRetencion(serie, { disposicion, observaciones = ''
   const texto = observaciones.trim();
   if (disposicion === 'EN_RETENCION') {
     if (texto) u.retencion.observaciones = texto;
-    u.historial.push({ dia: 0, hora, area: 'Calidad', evento: 'Retención revisada', resultado: texto ? `Se mantiene en retención · ${texto}` : 'Se mantiene en retención', usuario: inspector });
+    u.historial.push({ dia: 0, fecha: hoyISO(), hora, area: 'Calidad', evento: 'Retención revisada', resultado: texto ? `Se mantiene en retención · ${texto}` : 'Se mantiene en retención', usuario: inspector });
   } else {
     u.estado = disposicion;
     if (disposicion === 'RETRABAJO') u.retrabajo = { estado: 'Pendiente', dia: 0, hora, descripcion: '', resultado: null, observaciones: '' };
-    u.historial.push({ dia: 0, hora, area: 'Calidad', evento: 'Retención resuelta', resultado: `${ETIQUETA[disposicion]} · ${texto}`, usuario: inspector });
+    u.historial.push({ dia: 0, fecha: hoyISO(), hora, area: 'Calidad', evento: 'Retención resuelta', resultado: `${ETIQUETA[disposicion]} · ${texto}`, usuario: inspector });
   }
   guardarUnidades(unidades);
   return { ok: true, estado: u.estado };
@@ -185,7 +185,7 @@ export async function retrabajos(f = {}) {
 }
 
 // resultado: 'Corregido' | 'No corregido'. Al guardar, la unidad vuelve a Calidad para una nueva inspección.
-export async function guardarRetrabajo(serie, { descripcion = '', resultado, observaciones = '' }) {
+async function registrarRetrabajo(serie, { descripcion = '', resultado, observaciones = '' }) {
   await pausa(350);
   const inspector = exigirPermiso();
   const unidades = await leerUnidades();
@@ -197,7 +197,7 @@ export async function guardarRetrabajo(serie, { descripcion = '', resultado, obs
   const hora = ahoraHora();
   Object.assign(u.retrabajo, { estado: 'Finalizado', diaRetrabajo: 0, horaRetrabajo: hora, descripcion: descripcion.trim(), resultado, observaciones: observaciones.trim() });
   u.estado = 'PROBADA';
-  u.historial.push({ dia: 0, hora, area: 'Calidad', evento: 'Retrabajo', resultado: `${resultado} · enviada a nueva inspección`, usuario: inspector });
+  u.historial.push({ dia: 0, fecha: hoyISO(), hora, area: 'Calidad', evento: 'Retrabajo', resultado: `${resultado} · enviada a nueva inspección`, usuario: inspector });
   guardarUnidades(unidades);
   return { ok: true };
 }
@@ -218,3 +218,7 @@ export async function reporteCalidad(f = {}) {
   const total = d.liberadas + d.retenidas + d.retrabajo + d.scrap;
   return { desde, hasta, total, ...datos };
 }
+
+export const guardarInspeccion = (...args) => conEscritura(() => inspeccionar(...args));
+export const resolverRetencion = (...args) => conEscritura(() => disponerRetencion(...args));
+export const guardarRetrabajo = (...args) => conEscritura(() => registrarRetrabajo(...args));
