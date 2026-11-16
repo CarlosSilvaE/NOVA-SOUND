@@ -44,7 +44,7 @@ export function iniciarHistorial(idPantalla, { soloTabla = false } = {}) {
     history.replaceState(null, '', `?serie=${encodeURIComponent(texto)}`);
     cargarEn(zona, async () => {
       try {
-        return htmlUnidad(await unidadPorSerie(texto), soloTabla);
+        return htmlUnidad(await unidadPorSerie(texto, pagina.pantalla.area), soloTabla);
       } catch (error) {
         if (error instanceof ErrorApi && error.estado === 404) {
           return `<div class="tarjeta">${estadoVacio(error.message, 'Revisa que esté bien escrita o escanéala de nuevo.')}</div>`;
@@ -69,7 +69,7 @@ export function iniciarHistorial(idPantalla, { soloTabla = false } = {}) {
   }
 
   // Solo en modo ejemplo: atajos con series de prueba.
-  seriesDeEjemplo().then((lista) => {
+  seriesDeEjemplo(pagina.pantalla.area).then((lista) => {
     if (!lista.length) return;
     document.getElementById('ejemplos').innerHTML = `
       <p class="mb-1.5 text-xs text-suave">Series de ejemplo (solo para pruebas):</p>

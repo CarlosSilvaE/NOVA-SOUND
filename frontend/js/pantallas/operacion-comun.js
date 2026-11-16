@@ -18,7 +18,7 @@ export function exportar(nombre, filas, columnas) {
 
 // El marco y los componentes visuales son los mismos del resto del frontend.
 // Cada vista vuelve a consultar los datos después de una escritura confirmada.
-export function iniciarOperacion(id, dibujar) {
+export function iniciarOperacion(id, dibujar, { contexto = () => ({}) } = {}) {
   const p = montarPagina(id);
   if (!p) return;
   const ctx = { ...p, datos: null, vista: null };
@@ -30,14 +30,14 @@ export function iniciarOperacion(id, dibujar) {
   };
   ctx.refrescar = async () => {
     try {
-      ctx.datos = await consultarOperacion();
-      p.contenido.innerHTML = `${encabezado(p.sesion, p.pantalla.nombre)}<div id="error-operacion" class="mt-3" aria-live="assertive"></div><div id="vista-operacion" class="mt-4 space-y-4"></div>`;
+      ctx.datos = await consultarOperacion(p.pantalla.area, contexto());
+      p.contenido.innerHTML = `${encabezado(p.sesion, p.pantalla.nombre)}<p class="mt-2 text-xs text-suave">${ctx.datos.real ? 'Datos de PostgreSQL' : 'Datos de demostración en este navegador'}</p><div id="error-operacion" class="mt-3" aria-live="assertive"></div><div id="vista-operacion" class="mt-4 space-y-4"></div>`;
       ctx.vista = document.getElementById('vista-operacion');
       await dibujar(ctx);
     } catch (e) { ctx.error(e); }
   };
   ctx.escribir = async (accion, datos, mensaje, despues) => {
-    const r = await operar(accion, datos);
+    const r = await operar(accion, datos, p.pantalla.area);
     if (despues) despues(r);
     await ctx.refrescar();
     mostrarAviso(mensaje || 'Cambios guardados.');

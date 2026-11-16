@@ -12,7 +12,7 @@ from app.modules.almacen.schemas import (
     EmbarqueDetalle, EmbarqueResumen, EventoAuditoria, OrdenResumen,
     PanelResumen, ReaperturaAutorizar, ReporteEmpaque, SolicitudReapertura,
     UnidadAgregar, UnidadDetalle, IncidenciaCrear, IncidenciaResumen, Mensaje,
-    TrazabilidadUnidad,
+    TrazabilidadUnidad, CierreCaja,
 )
 
 log = logging.getLogger(__name__)
@@ -58,8 +58,9 @@ def unidades_disponibles(
     id_orden: int = Query(gt=0, description="Orden seleccionada al formar una caja"),
     buscar: str | None = Query(default=None, max_length=100, description="Número de serie parcial"),
     limite: int = Query(default=50, ge=1, le=100),
+    desplazamiento: int = Query(default=0, ge=0),
 ):
-    return _db(service.disponibles, id_orden, buscar, limite)
+    return _db(service.disponibles, id_orden, buscar, limite, desplazamiento)
 
 
 @router.get("/cajas", response_model=list[CajaResumen],
@@ -116,8 +117,8 @@ def retirar_unidad(id_caja: int, id_unidad: int, actor: Actor = Depends(obtener_
              summary="Confirmar cierre de caja",
              description="Verifica todas las unidades, capacidad, cliente, modelo, orden y reglas de color. Audita el cierre.",
              responses=ERRORES)
-def cerrar_caja(id_caja: int, actor: Actor = Depends(obtener_actor)):
-    return _db(service.cerrar_caja, id_caja, actor)
+def cerrar_caja(id_caja: int, datos: CierreCaja | None = None, actor: Actor = Depends(obtener_actor)):
+    return _db(service.cerrar_caja, id_caja, actor, datos.motivo if datos else None)
 
 
 @router.get("/cajas/{id_caja}/historial", response_model=list[EventoAuditoria],
@@ -158,7 +159,7 @@ def embarques():
              description="Deriva el cliente desde la orden, registra la referencia y comienza en PREPARACION.",
              responses=ERRORES)
 def crear_embarque(datos: EmbarqueCrear, actor: Actor = Depends(obtener_actor)):
-    return _db(service.crear_embarque, datos.id_orden, datos.referencia, actor)
+    return _db(service.crear_embarque, datos.id_orden, datos.referencia, actor, datos.destino, datos.contenedor)
 
 
 @router.get("/embarques/{id_embarque}", response_model=EmbarqueDetalle,

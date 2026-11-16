@@ -66,7 +66,7 @@ function iniciar(pagina) {
         try {
           const u = await unidadPorSerie(texto);
           if (u.estado !== 'PROBADA') return htmlNoInspeccionable(u);
-          const porCategoria = defectosPorCategoria(await catalogos());
+          const porCategoria = defectosPorCategoria(await catalogos('calidad'));
           return { html: htmlInspeccion(u, disponer, Object.keys(porCategoria)), listo: () => conectar(u, porCategoria, disponer, reiniciar) };
         } catch (error) {
           if (error instanceof ErrorApi && error.estado === 404) {

@@ -2,7 +2,7 @@
 // Decisión de equipo (C2): la persona inicia sesión con su NÚMERO DE EMPLEADO, así que ya no hay un campo «usuario» aparte.
 
 import { montarPagina, rutaA } from '../layout.js';
-import { usuario, guardarUsuario, rolesPermisos } from '../api.js';
+import { usuario, guardarUsuario, rolesPermisos, sesionReal } from '../api.js';
 import { encabezado, tarjeta, campo, marcarError, aviso, cargarEn, mostrarAvisoDespues } from '../componentes.js';
 
 const pagina = montarPagina('sistemas/nuevo-o-editar-usuario');
@@ -27,10 +27,10 @@ function htmlFormulario(u, roles, esNuevo, puedeAccionar) {
     <fieldset ${puedeAccionar ? '' : 'disabled'} class="min-w-0">
     <div class="grid gap-4 md:grid-cols-2">
       ${campo({ id: 'nombre', etiqueta: 'Nombre completo', valor: u.nombre || '', requerido: true, extra: 'autocomplete="off"' })}
-      ${campo({ id: 'numEmpleado', etiqueta: 'Número de empleado', valor: u.numEmpleado || '', requerido: true, ayuda: esNuevo ? 'Con este número inicia sesión.' : 'No se puede cambiar.', extra: `inputmode="numeric" ${esNuevo ? '' : 'readonly'}` })}
+      ${campo({ id: 'numEmpleado', etiqueta: sesionReal() ? 'Usuario o número de empleado' : 'Número de empleado', valor: u.numEmpleado || '', requerido: true, ayuda: esNuevo ? 'Con este identificador inicia sesión.' : 'No se puede cambiar.', extra: `inputmode="${sesionReal() ? 'text' : 'numeric'}" ${esNuevo ? '' : 'readonly'}` })}
       ${campo({ id: 'rol', etiqueta: 'Rol', valor: u.rol || '', requerido: true, opciones: [{ valor: '', texto: 'Elige un rol' }, ...roles] })}
       ${campo({ id: 'estado', etiqueta: 'Estado', valor: u.estado || 'Activo', requerido: true, opciones: ['Activo', 'Bloqueado', 'Inactivo'], ayuda: 'Una cuenta bloqueada o inactiva no puede iniciar sesión.' })}
-      ${campo({ id: 'contrasena', etiqueta: esNuevo ? 'Contraseña' : 'Contraseña nueva', tipo: 'password', requerido: esNuevo, ayuda: esNuevo ? 'Mínimo 6 caracteres.' : 'Déjala vacía para conservar la actual.', extra: 'autocomplete="new-password"' })}
+      ${campo({ id: 'contrasena', etiqueta: esNuevo ? 'Contraseña' : 'Contraseña nueva', tipo: 'password', requerido: esNuevo, ayuda: esNuevo ? `Mínimo ${sesionReal() ? 8 : 6} caracteres.` : 'Déjala vacía para conservar la actual.', extra: 'autocomplete="new-password"' })}
     </div>
     </fieldset>
     <div class="mt-6 flex justify-end gap-2">
@@ -51,9 +51,9 @@ function conectar(esNuevo, puedeAccionar) {
     // Validación (el back vuelve a validar; esto solo ahorra un viaje).
     const errores = {
       nombre: datos.nombre ? '' : 'Escribe el nombre.',
-      numEmpleado: !datos.numEmpleado ? 'Escribe el número de empleado.' : /^\d+$/.test(datos.numEmpleado) ? '' : 'Usa solo números.',
+      numEmpleado: !datos.numEmpleado ? 'Escribe el identificador de acceso.' : (sesionReal() ? /^[\w.@-]{1,50}$/ : /^\d+$/).test(datos.numEmpleado) ? '' : 'Usa un identificador válido.',
       rol: datos.rol ? '' : 'Elige un rol.',
-      contrasena: esNuevo && !datos.contrasena ? 'Escribe una contraseña.' : datos.contrasena && datos.contrasena.length < 6 ? 'Debe tener al menos 6 caracteres.' : '',
+      contrasena: esNuevo && !datos.contrasena ? 'Escribe una contraseña.' : datos.contrasena && datos.contrasena.length < (sesionReal() ? 8 : 6) ? `Debe tener al menos ${sesionReal() ? 8 : 6} caracteres.` : '',
     };
     Object.entries(errores).forEach(([id, mensaje]) => marcarError(id, mensaje));
     if (Object.values(errores).some(Boolean)) {

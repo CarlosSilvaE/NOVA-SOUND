@@ -3,6 +3,7 @@
 
 import { montarCabeceraPublica, rutaA } from '../layout.js';
 import { levantarTicket } from '../api.js';
+import { ALMACEN_API } from '../config.js';
 import { campo, marcarError } from '../componentes.js';
 import { esc } from '../ui.js';
 
@@ -20,6 +21,7 @@ function verFormulario() {
         <div id="error-general" class="aviso aviso-peligro mt-4 hidden" role="alert"></div>
 
         <div class="mt-4 flex flex-col gap-4">
+          ${campo({ id: 'modo-ticket', etiqueta: 'Destino del ticket', valor: new URLSearchParams(location.search).get('modo') || (ALMACEN_API ? 'real' : 'demo'), opciones: [{ valor: 'real', texto: 'Sistemas (cuenta real)' }, { valor: 'demo', texto: 'Demostración' }] })}
           ${campo({ id: 'numEmpleado', etiqueta: 'Número de empleado', requerido: true, extra: 'inputmode="numeric" autofocus' })}
           ${campo({ id: 'nombre', etiqueta: 'Nombre', requerido: true, extra: 'autocomplete="name"' })}
           ${campo({ id: 'motivo', etiqueta: 'Motivo', requerido: true, opciones: ['Cuenta bloqueada', 'Olvidó la contraseña'] })}
@@ -48,7 +50,7 @@ function verFormulario() {
     boton.disabled = true;
     boton.textContent = 'Enviando…';
     try {
-      const { id } = await levantarTicket(datos);
+      const { id } = await levantarTicket(datos, document.getElementById('modo-ticket').value);
       verConfirmacion(id);
     } catch (error) {
       const caja = document.getElementById('error-general');

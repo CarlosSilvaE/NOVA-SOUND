@@ -5,9 +5,9 @@ const accion = (nombre, texto, atributos = '') => boton(texto, { tipo: 'secundar
 const opcionesOrden = d => d.ordenes.map(o => ({ valor: o.id, texto: `${o.id} · ${o.modelo} · ${o.cliente}` }));
 const colsCaja = [
   { titulo: 'Caja', campo: 'id' }, { titulo: 'Orden', campo: 'orden' }, { titulo: 'Cliente', campo: 'cliente' }, { titulo: 'Modelo', campo: 'modelo' },
-  { titulo: 'Estado', campo: 'estado' }, { titulo: 'Unidades', texto: c => c.unidades.length }, { titulo: 'Capacidad', campo: 'capacidad' }, { titulo: 'Embarque', campo: 'embarque' },
+  { titulo: 'Estado', campo: 'estado' }, { titulo: 'Unidades', texto: c => c.cantidad ?? c.unidades.length }, { titulo: 'Capacidad', campo: 'capacidad' }, { titulo: 'Embarque', campo: 'embarque' },
 ];
-const colsEmbarque = [{ titulo: 'Embarque', campo: 'id' }, { titulo: 'Orden', campo: 'orden' }, { titulo: 'Cliente', campo: 'cliente' }, { titulo: 'Destino', campo: 'destino' }, { titulo: 'Contenedor', campo: 'contenedor' }, { titulo: 'Estado', campo: 'estado' }, { titulo: 'Cajas', texto: e => e.cajas.length }, { titulo: 'Salida', campo: 'fechaSalida' }];
+const colsEmbarque = [{ titulo: 'Embarque', campo: 'id' }, { titulo: 'Orden', campo: 'orden' }, { titulo: 'Cliente', campo: 'cliente' }, { titulo: 'Destino', campo: 'destino' }, { titulo: 'Contenedor', campo: 'contenedor' }, { titulo: 'Estado', campo: 'estado' }, { titulo: 'Cajas', texto: e => e.cantidadCajas ?? e.cajas.length }, { titulo: 'Salida', campo: 'fechaSalida' }];
 const historial = r => tabla({ filas: [...(r.auditoria || [])].reverse(), columnas: [{ titulo: 'Fecha', campo: 'fecha' }, { titulo: 'Hora', campo: 'hora' }, { titulo: 'Responsable', campo: 'quien' }, { titulo: 'Evento', campo: 'que' }, { titulo: 'Motivo', campo: 'motivo' }] });
 
 export function iniciarAlmacen(id) {
@@ -22,8 +22,9 @@ export function iniciarAlmacen(id) {
     const tablaCajas = (filas, acciones) => tabla({ filas, columnas: [...colsCaja, ...(acciones ? [{ titulo: 'Acciones', html: acciones }] : [])] });
     const verCaja = b => enlace(`pages/empaque/consultar-caja.html?caja=${encodeURIComponent(b.id)}`, 'Consultar');
     const cerrar = async b => {
-      const capacidad = Number(d.parametros.capacidadCaja[b.modelo]);
-      const r = await preguntar({ titulo: `Cerrar ${b.id}`, mensaje: `${b.unidades.length} de ${capacidad} unidades. Confirma que revisaste el contenido y la orden. Las unidades, su estado y la capacidad se validarán antes del cierre.`, motivo: { etiqueta: b.unidades.length < capacidad ? 'Motivo de caja incompleta' : 'Nota de cierre', requerido: b.unidades.length < capacidad }, textoOk: 'Confirmar cierre', tipoOk: 'confirmar' });
+      const capacidad = Number(b.capacidad ?? d.parametros.capacidadCaja[b.modelo]);
+      const cantidad = b.cantidad ?? b.unidades.length;
+      const r = await preguntar({ titulo: `Cerrar ${b.id}`, mensaje: `${cantidad} de ${capacidad} unidades. Confirma que revisaste el contenido y la orden.${d.real && cantidad < capacidad ? ' El motivo de caja incompleta debe tener al menos 10 caracteres.' : ''}`, motivo: { etiqueta: cantidad < capacidad ? 'Motivo de caja incompleta' : 'Nota de cierre', requerido: cantidad < capacidad }, textoOk: 'Confirmar cierre', tipoOk: 'confirmar' });
       if (r) await c.escribir('cerrarCaja', { caja: b.id, motivo: r.motivo, validado: true }, 'Caja cerrada. Ya puede asignarse a un embarque.');
     };
     const conectarCierre = () => c.evento('[data-accion="cerrar"]', 'click', (_e, el) => cerrar(d.cajas.find(b => b.id === el.dataset.caja)));
@@ -37,7 +38,7 @@ export function iniciarAlmacen(id) {
         ${tarjeta('Cajas abiertas', tablaCajas(d.cajas.filter(b => b.estado === 'Abierta'), r => enlace(`pages/empaque/formar-caja.html?caja=${encodeURIComponent(r.id)}`, 'Continuar')))}<div id="caja-activa" class="space-y-4"></div>`;
       if (editaCaja) c.evento('#form-nueva-caja', 'submit', () => c.escribir('crearCaja', { orden: valor('orden') }, 'Caja creada.', setCaja));
       if (!b) return;
-      const disponibles = d.unidades.filter(u => u.orden === b.orden && u.modelo === b.modelo && u.color === b.color && u.estado === 'LIBERADA' && !u.caja);
+      const disponibles = d.unidades.filter(u => u.orden === b.orden && u.modelo === b.modelo && (b.mezclaColores || u.color === b.color) && u.estado === 'LIBERADA' && !u.caja);
       const contenido = b.unidades.map(s => d.unidades.find(u => u.serie === s)).filter(Boolean);
       const abierta = b.estado === 'Abierta' && !b.embarque;
       document.getElementById('caja-activa').innerHTML = `${tarjeta(`Caja activa ${b.id}`, tablaCajas([{ ...b, capacidad: abierta ? d.parametros.capacidadCaja[b.modelo] : b.capacidad }]))}
@@ -59,12 +60,28 @@ export function iniciarAlmacen(id) {
       c.vista.innerHTML = tarjeta('Buscar caja', formulario('form-buscar', campo({ id: 'id-caja', etiqueta: 'Id de la caja', valor: cajaId, requerido: true }), boton('Buscar', { enviar: true }))) + `<div id="resultado" class="space-y-4">${b ? renderCaja(b) : aviso('info', cajaId ? 'No se encontró ninguna caja con ese identificador.' : 'Escribe o escanea el identificador de una caja creada en Empaque.')}</div>`;
       if (b) {
         if (puedeCerrar && b.estado === 'Abierta') c.vista.insertAdjacentHTML('beforeend', accion('cerrar', 'Confirmar cierre de caja', `data-caja="${esc(b.id)}"`));
-        if (puedeReabrir && b.estado === 'Cerrada' && !b.embarque) c.vista.insertAdjacentHTML('beforeend', boton('Reabrir caja', { id: 'reabrir' }));
+        if (puedeReabrir && !d.real && b.estado === 'Cerrada' && !b.embarque) c.vista.insertAdjacentHTML('beforeend', boton('Reabrir caja', { id: 'reabrir' }));
+        if (d.real && b.estado === 'Cerrada' && !b.embarque) {
+          const puedeSolicitar = c.puede('cerrar-caja') || c.puede('reabrir-caja');
+          if (puedeSolicitar) c.vista.insertAdjacentHTML('beforeend', boton('Solicitar reapertura', { id: 'solicitar-reapertura' }));
+          c.vista.insertAdjacentHTML('beforeend', tarjeta('Solicitudes de reapertura', tabla({ filas: d.solicitudes, columnas: [
+            { titulo: 'Solicitud', campo: 'id_autorizacion' }, { titulo: 'Solicitante', campo: 'id_usuario_solicita' }, { titulo: 'Motivo', campo: 'motivo' }, { titulo: 'Estado', campo: 'estado' },
+            { titulo: 'Acción', html: s => puedeReabrir && s.estado === 'PENDIENTE' && s.id_usuario_solicita !== c.sesion.usuario.id ? boton('Autorizar reapertura', { extra: `data-autorizar-reapertura="${s.id_autorizacion}"` }) : '' },
+          ] })));
+        }
         if (b.estado === 'Abierta' && editaCaja) c.vista.insertAdjacentHTML('beforeend', enlace(`pages/empaque/formar-caja.html?caja=${encodeURIComponent(b.id)}`, 'Continuar empaque'));
       }
       c.evento('#form-buscar', 'submit', () => { cajaId = valor('id-caja').toUpperCase(); history.replaceState(null, '', `?caja=${encodeURIComponent(cajaId)}`); return c.refrescar(); });
       conectarCierre();
-      c.evento('#reabrir', 'click', async () => { const r = await preguntar({ titulo: 'Reabrir caja', motivo: { etiqueta: 'Motivo de reapertura', requerido: true } }); if (r) await c.escribir('reabrirCaja', { caja: b.id, motivo: r.motivo }, 'Caja reabierta.'); }); return;
+      c.evento('#reabrir', 'click', async () => { const r = await preguntar({ titulo: 'Reabrir caja', motivo: { etiqueta: 'Motivo de reapertura', requerido: true } }); if (r) await c.escribir('reabrirCaja', { caja: b.id, motivo: r.motivo }, 'Caja reabierta.'); });
+      c.evento('#solicitar-reapertura', 'click', async () => {
+        const r = await preguntar({ titulo: 'Solicitar reapertura', mensaje: 'Otra persona con permiso de supervisor debe autorizarla. Escribe un motivo de al menos 10 caracteres.', motivo: { etiqueta: 'Motivo', requerido: true } });
+        if (r) await c.escribir('solicitarReapertura', { caja: b.id, motivo: r.motivo }, 'Solicitud guardada. La caja permanece cerrada hasta la autorización.');
+      });
+      c.evento('[data-autorizar-reapertura]', 'click', async (_ev, el) => {
+        const r = await preguntar({ titulo: 'Autorizar reapertura', mensaje: 'Quedará registrada tu autorización y la caja volverá a estar abierta.' });
+        if (r) await c.escribir('reabrirCaja', { caja: b.id, autorizacion: el.dataset.autorizarReapertura }, 'Reapertura autorizada y guardada.');
+      }); return;
     }
     if (vista === 'confirmar-cierre-de-caja') {
       c.vista.innerHTML = tarjeta('Cajas pendientes de cierre', tablaCajas(d.cajas.filter(b => b.estado === 'Abierta'), b => verCaja(b) + (c.puedeAccionar && c.puede('cerrar-caja') ? accion('cerrar', 'Cerrar caja', `data-caja="${esc(b.id)}"`) : '')));
@@ -117,5 +134,5 @@ export function iniciarAlmacen(id) {
     c.evento('#form-filtros', 'submit', () => { if (valor('f-desde') && valor('f-hasta') && valor('f-desde') > valor('f-hasta')) throw new Error('La fecha inicial no puede ser posterior a la final.'); busqueda = valor('f-buscar'); filtro = { desde: valor('f-desde'), hasta: valor('f-hasta'), estado: valor('f-estado'), modelo: valor('f-modelo') }; return c.refrescar(); });
     c.evento('#limpiar', 'click', () => { busqueda = ''; filtro = { desde: '', hasta: '', estado: '', modelo: '' }; return c.refrescar(); });
     c.evento('#exportar', 'click', () => exportar(`${vista}.csv`, filas, cols));
-  });
+  }, { contexto: () => ({ caja: cajaId, embarque: embarqueId }) });
 }

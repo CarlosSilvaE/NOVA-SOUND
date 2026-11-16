@@ -44,7 +44,7 @@ function iniciar(pagina) {
     });
 
   cargarEn(zonaFiltros, async () => {
-    const op = await opciones();
+    const op = await opciones('calidad');
     return {
       html: `
         <form id="form-filtros" class="tarjeta flex flex-wrap items-end gap-3 p-3" aria-label="Filtros de retrabajos" role="search" novalidate>

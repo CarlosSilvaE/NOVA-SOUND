@@ -18,9 +18,10 @@ def ejecutar(cx, sql, **params):
 def obtener_orden(cx, id_orden):
     return uno(cx, """
         SELECT o.id_orden, o.id_cliente, cl.nombre AS cliente,
-               cl.mezcla_colores, o.id_modelo, o.id_color, m.nombre AS modelo, o.cantidad
+               cl.mezcla_colores, o.id_modelo, o.id_color, co.nombre AS color, m.nombre AS modelo, o.cantidad
         FROM ordenes o JOIN clientes cl ON cl.id_cliente = o.id_cliente
         JOIN modelos m ON m.id_modelo = o.id_modelo
+        JOIN colores co ON co.id_color=o.id_color
         WHERE o.id_orden = :id
     """, id=id_orden)
 
@@ -28,9 +29,10 @@ def obtener_orden(cx, id_orden):
 def listar_ordenes(cx):
     return todos(cx, """
         SELECT o.id_orden, o.id_cliente, cl.nombre AS cliente,
-               cl.mezcla_colores, o.id_modelo, o.id_color, m.nombre AS modelo, o.cantidad
+               cl.mezcla_colores, o.id_modelo, o.id_color, co.nombre AS color, m.nombre AS modelo, o.cantidad
         FROM ordenes o JOIN clientes cl ON cl.id_cliente = o.id_cliente
         JOIN modelos m ON m.id_modelo = o.id_modelo
+        JOIN colores co ON co.id_color=o.id_color
         ORDER BY o.id_orden DESC
     """)
 
@@ -110,7 +112,7 @@ def obtener_unidad(cx, numero_serie, bloquear=False):
     return uno(cx, sql, numero_serie=numero_serie)
 
 
-def disponibles(cx, id_orden, buscar=None, limite=50):
+def disponibles(cx, id_orden, buscar=None, limite=50, desplazamiento=0):
     return todos(cx, """
         SELECT u.id_unidad, u.numero_serie, u.id_color, col.nombre AS color,
                u.estado, u.id_caja, l.id_orden, ult.estado AS estado_calidad
@@ -123,8 +125,8 @@ def disponibles(cx, id_orden, buscar=None, limite=50):
         WHERE l.id_orden=:id_orden AND u.id_caja IS NULL
           AND u.estado='LIBERADA' AND ult.estado='LIBERADA'
           AND (CAST(:buscar AS text) IS NULL OR u.numero_serie ILIKE CAST(:buscar AS text))
-        ORDER BY u.id_unidad LIMIT :limite
-    """, id_orden=id_orden, buscar=f"%{buscar}%" if buscar else None, limite=limite)
+        ORDER BY u.id_unidad LIMIT :limite OFFSET :desplazamiento
+    """, id_orden=id_orden, buscar=f"%{buscar}%" if buscar else None, limite=limite, desplazamiento=desplazamiento)
 
 
 def colores_caja(cx, id_caja):
@@ -212,7 +214,7 @@ def aprobar_autorizacion(cx, id_autorizacion, supervisor):
 
 _EMBARQUE_SELECT = """
     SELECT e.id_embarque,e.id_orden,e.id_cliente,cl.nombre AS cliente,
-           e.referencia,e.estado,e.fecha_salida,
+           e.referencia,e.destino,e.contenedor,e.fecha_creacion,e.estado,e.fecha_salida,
            (SELECT COUNT(*) FROM cajas c WHERE c.id_embarque=e.id_embarque) AS cantidad_cajas,
            (SELECT COUNT(*) FROM unidades u JOIN cajas c ON c.id_caja=u.id_caja
             WHERE c.id_embarque=e.id_embarque) AS cantidad_unidades
@@ -234,12 +236,12 @@ def bloquear_embarque(cx, id_embarque):
         id=id_embarque).first()
 
 
-def crear_embarque(cx, orden, referencia):
+def crear_embarque(cx, orden, referencia, destino=None, contenedor=None):
     return ejecutar(cx, """
-        INSERT INTO embarques(id_cliente,id_orden,referencia,estado)
-        VALUES (:cliente,:orden,:referencia,'PREPARACION') RETURNING id_embarque
+        INSERT INTO embarques(id_cliente,id_orden,referencia,destino,contenedor,estado)
+        VALUES (:cliente,:orden,:referencia,:destino,:contenedor,'PREPARACION') RETURNING id_embarque
     """, cliente=orden["id_cliente"], orden=orden["id_orden"],
-       referencia=referencia).scalar_one()
+       referencia=referencia, destino=destino, contenedor=contenedor).scalar_one()
 
 
 def asignar_caja_embarque(cx, id_caja, id_embarque):

@@ -6,10 +6,11 @@ import json
 from datetime import date, datetime, time, timedelta
 
 from fastapi import HTTPException
+from sqlalchemy import text
 
 from app.db.database import engine
 from app.modules.almacen import repository as r
-from app.modules.almacen.auth import Actor, exigir_supervisor
+from app.modules.almacen.auth import Actor, exigir_supervisor, exigir_operador
 
 CAPACIDADES_OFICIALES = {"NS-MINI": 12, "NS-SPORT": 8, "NS-PRO": 6, "NS-MAX": 4}
 
@@ -17,6 +18,12 @@ CAPACIDADES_OFICIALES = {"NS-MINI": 12, "NS-SPORT": 8, "NS-PRO": 6, "NS-MAX": 4}
 def capacidad_modelo(nombre: str) -> int | None:
     """Acepta exclusivamente los cuatro códigos oficiales del caso NOVA SOUND."""
     return CAPACIDADES_OFICIALES.get(nombre.strip().upper())
+
+
+def capacidad_configurada(cx, modelo):
+    valor = cx.execute(text("SELECT valor FROM configuracion_web WHERE clave='capacidadCaja'")).scalar_one()
+    capacidad = valor.get(modelo)
+    return capacidad if isinstance(capacidad, int) and capacidad > 0 else None
 
 
 def _evento_unidad(cx, actor: Actor, unidad: dict, accion: str, *,
@@ -104,7 +111,7 @@ def _validar_contenido(cx, caja):
 def listar_ordenes():
     with engine.connect() as cx:
         ordenes = r.listar_ordenes(cx)
-    return [{**orden, "capacidad_caja": capacidad_modelo(orden["modelo"])} for orden in ordenes]
+        return [{**orden, "capacidad_caja": capacidad_configurada(cx, orden["modelo"])} for orden in ordenes]
 
 
 def listar_cajas(id_cliente=None, id_modelo=None, id_orden=None, estado=None,
@@ -124,19 +131,20 @@ def detalle_caja(id_caja):
         return {**caja, "unidades": r.unidades_caja(cx, id_caja)}
 
 
-def disponibles(id_orden, buscar=None, limite=50):
+def disponibles(id_orden, buscar=None, limite=50, desplazamiento=0):
     with engine.connect() as cx:
         if r.obtener_orden(cx, id_orden) is None:
             _error(404, "Orden no encontrada")
-        return r.disponibles(cx, id_orden, buscar, limite)
+        return r.disponibles(cx, id_orden, buscar, limite, desplazamiento)
 
 
 def crear_caja(id_orden: int, actor: Actor):
+    exigir_operador(actor)
     with engine.begin() as cx:
         orden = r.obtener_orden(cx, id_orden)
         if orden is None:
             _error(404, "Orden de producción no encontrada")
-        capacidad = capacidad_modelo(orden["modelo"])
+        capacidad = capacidad_configurada(cx, orden["modelo"])
         if capacidad is None:
             _error(422, f"No está definida la capacidad del modelo '{orden['modelo']}'")
         id_caja = r.crear_caja(cx, orden, capacidad)
@@ -146,6 +154,7 @@ def crear_caja(id_orden: int, actor: Actor):
 
 
 def agregar_unidad(id_caja, numero_serie, actor):
+    exigir_operador(actor)
     with engine.begin() as cx:
         caja = _caja(cx, id_caja, bloqueo=True)
         if caja["estado"] != "EN_PROCESO" or caja["id_embarque"] is not None:
@@ -178,6 +187,7 @@ def agregar_unidad(id_caja, numero_serie, actor):
 
 
 def retirar_unidad(id_caja, id_unidad, actor):
+    exigir_operador(actor)
     with engine.begin() as cx:
         caja = _caja(cx, id_caja, bloqueo=True)
         if caja["estado"] != "EN_PROCESO" or caja["id_embarque"] is not None:
@@ -198,15 +208,19 @@ def retirar_unidad(id_caja, id_unidad, actor):
         return {**_caja(cx, id_caja), "unidades": r.unidades_caja(cx, id_caja)}
 
 
-def cerrar_caja(id_caja, actor):
+def cerrar_caja(id_caja, actor, motivo=None):
+    exigir_operador(actor)
     with engine.begin() as cx:
         caja = _caja(cx, id_caja, bloqueo=True)
         if caja["estado"] != "EN_PROCESO" or caja["id_embarque"] is not None:
             _error(409, "La caja no está abierta o ya está asignada")
-        _validar_contenido(cx, caja)
+        unidades = _validar_contenido(cx, caja)
+        motivo = (motivo or '').strip()
+        if len(unidades) < caja['capacidad'] and len(motivo) < 10:
+            _error(422, 'Escribe un motivo de al menos 10 caracteres para cerrar una caja incompleta.')
         r.estado_caja(cx, id_caja, "CERRADA", cerrar=True)
         r.auditoria(cx, actor.id_usuario, id_caja, "CERRAR_CAJA", "cajas",
-                    antes="EN_PROCESO", despues="CERRADA")
+                    antes="EN_PROCESO", despues="CERRADA", motivo=motivo or None)
         _eventos_caja(cx, actor, id_caja, "CERRAR_CAJA",
                       antes="EN_PROCESO", despues="CERRADA")
         return {**_caja(cx, id_caja), "unidades": r.unidades_caja(cx, id_caja)}
@@ -270,18 +284,22 @@ def historial_embarque(id_embarque):
         return r.historial_embarque(cx, id_embarque)
 
 
-def crear_embarque(id_orden, referencia, actor):
+def crear_embarque(id_orden, referencia, actor, destino=None, contenedor=None):
+    exigir_operador(actor)
     with engine.begin() as cx:
         orden = r.obtener_orden(cx, id_orden)
         if orden is None:
             _error(404, "Orden no encontrada")
-        id_embarque = r.crear_embarque(cx, orden, referencia.strip())
+        if not referencia.strip():
+            _error(422, 'Escribe la referencia del embarque.')
+        id_embarque = r.crear_embarque(cx, orden, referencia.strip(), (destino or '').strip() or None, (contenedor or '').strip() or None)
         r.auditoria(cx, actor.id_usuario, id_embarque, "CREAR_EMBARQUE", "embarques",
                     despues=f"Orden={id_orden}, Referencia={referencia}")
         return {**_embarque(cx, id_embarque), "cajas": []}
 
 
 def agregar_caja_embarque(id_embarque, id_caja, actor):
+    exigir_operador(actor)
     with engine.begin() as cx:
         embarque = _embarque(cx, id_embarque, bloqueo=True)
         if embarque["estado"] != "PREPARACION":
@@ -303,6 +321,7 @@ def agregar_caja_embarque(id_embarque, id_caja, actor):
 
 
 def registrar_salida(id_embarque, actor):
+    exigir_operador(actor)
     with engine.begin() as cx:
         embarque = _embarque(cx, id_embarque, bloqueo=True)
         if embarque["estado"] != "PREPARACION":
@@ -363,6 +382,7 @@ def _leer_evento(texto: str | None) -> dict:
 
 
 def registrar_incidencia(id_caja, tipo, motivo, actor):
+    exigir_operador(actor)
     with engine.begin() as cx:
         _caja(cx, id_caja, bloqueo=True)
         r.auditoria(cx, actor.id_usuario, id_caja, "INCIDENCIA", "cajas",
@@ -380,6 +400,7 @@ def solicitudes_reapertura(id_caja):
         return r.solicitudes_reapertura(cx, id_caja)
 
 def quitar_caja_embarque(id_embarque, id_caja, actor):
+    exigir_operador(actor)
     with engine.begin() as cx:
         embarque = _embarque(cx, id_embarque, bloqueo=True)
         if embarque["estado"] != "PREPARACION":

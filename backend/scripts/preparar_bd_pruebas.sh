@@ -21,7 +21,9 @@ for sql in \
   01_esquema_postgresql.sql \
   02_datos_postgresql.sql \
   04_modulo_almacen.sql \
-  05_catalogo_modelos_oficiales.sql
+  05_catalogo_modelos_oficiales.sql \
+  06_integracion_frontend.sql \
+  07_produccion_sistemas_gerencia.sql
 do
     echo "Aplicando $sql SOLO en $DB ..."
     psql -h 127.0.0.1 -U "$ROLE" -d "$DB" -X -v ON_ERROR_STOP=1 \

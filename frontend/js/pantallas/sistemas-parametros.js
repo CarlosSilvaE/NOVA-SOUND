@@ -31,7 +31,7 @@ function htmlParametros(p, puedeAccionar) {
     <form id="form-parametros" class="max-w-3xl" novalidate>
       ${tarjeta(
         'Capacidad de caja por modelo',
-        `<p class="mb-4 text-sm text-suave">Unidades que caben en una caja estándar de cada modelo.</p>
+        `<p class="mb-4 text-sm text-suave">Unidades que caben en una caja estándar de cada modelo. Los cambios se aplican a las cajas nuevas; las existentes conservan su capacidad. Un modelo nuevo con capacidad 0 requiere configuración antes de empacar.</p>
          <div class="flex flex-wrap gap-4">${campos}</div>
          ${puedeAccionar ? `<div class="mt-4">${campo({ id: 'motivo', etiqueta: 'Motivo del cambio', tipo: 'textarea', requerido: true, ayuda: 'Se guarda junto con tu nombre y la hora.' })}</div>` : ''}
          <p class="mt-5 text-xs text-suave">Último cambio: <strong class="text-texto">${esc(c.por)}</strong>, ${esc(fechaCorta(c.fecha))} ${esc(c.hora)}. «${esc(c.motivo)}»</p>

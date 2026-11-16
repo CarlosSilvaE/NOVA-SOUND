@@ -2,7 +2,7 @@
 
 Estas pruebas NO se ejecutan sin ALMACEN_RUN_INTEGRATION=1.
 Solo se permite nombre de base con sufijo _test (por defecto nova_sounds_test).
-Preparar el esquema + semilla y aplicar migraciones 04 y 05 antes de ejecutar.
+Preparar el esquema + semilla y aplicar migraciones 04, 05 y 06 antes de ejecutar.
 
 Ejecutar desde backend/: ALMACEN_RUN_INTEGRATION=1 python -m pytest -q tests/test_almacen_integracion.py
 """
@@ -19,6 +19,8 @@ from app.db.database import DATABASE_URL
 from app.main import app
 from app.modules.almacen import service
 from app.modules.almacen.auth import Actor, obtener_actor
+from app.modules.almacen import auth as almacen_auth
+from app.core import sesiones
 
 pytestmark = pytest.mark.skipif(
     os.getenv("ALMACEN_RUN_INTEGRATION") != "1",
@@ -54,6 +56,8 @@ def pg_test(monkeypatch):
         engine_test.dispose()
         raise
     monkeypatch.setattr(service, "engine", engine_test)
+    monkeypatch.setattr(almacen_auth, "engine", engine_test)
+    monkeypatch.setattr(sesiones, "engine", engine_test)
     try:
         yield engine_test
     finally:
@@ -177,7 +181,7 @@ def test_flujo_empaque_y_embarque_real(pg_test, escenario):
         assert traz_pre.status_code == 200, traz_pre.text
         assert any(e["accion"] == "AGREGAR_UNIDAD" for e in traz_pre.json()["historial_almacen"])
 
-        cerrado = api.post(f"/api/v1/almacen/cajas/{caja_id}/cerrar")
+        cerrado = api.post(f"/api/v1/almacen/cajas/{caja_id}/cerrar", json={"motivo": "Cierre parcial para prueba de integracion"})
         assert cerrado.status_code == 200, cerrado.text
         assert cerrado.json()["estado"] == "CERRADA"
         bloqueado = api.post(f"/api/v1/almacen/cajas/{caja_id}/unidades", json={"numero_serie": u["liberada2"]["serie"]})
@@ -255,7 +259,7 @@ def test_reapertura_autorizada_y_auditada(pg_test, escenario):
     id_caja = caja["id_caja"]
     serie = escenario["unidades"]["liberada"]["serie"]
     service.agregar_unidad(id_caja, serie, actor)
-    service.cerrar_caja(id_caja, actor)
+    service.cerrar_caja(id_caja, actor, 'Cierre parcial de prueba')
     solicitud = service.solicitar_reapertura(id_caja, "Corregir una unidad escaneada erroneamente", actor)
     with pytest.raises(HTTPException) as exc:
         service.autorizar_reapertura(id_caja, solicitud["id_autorizacion"], actor)
@@ -273,10 +277,89 @@ def test_embarque_rechaza_orden_diferente(pg_test, escenario):
     caja = service.crear_caja(escenario["orden_mini"], actor)
     id_caja = caja["id_caja"]
     service.agregar_unidad(id_caja, escenario["unidades"]["liberada"]["serie"], actor)
-    service.cerrar_caja(id_caja, actor)
+    service.cerrar_caja(id_caja, actor, 'Cierre parcial de prueba')
     embarque = service.crear_embarque(escenario["orden_pro"], "QA-REFERENCIA-OTRA-ORDEN", actor)
     with pytest.raises(HTTPException) as exc:
         service.agregar_caja_embarque(embarque["id_embarque"], id_caja, actor)
     assert exc.value.status_code == 409
     detalle = service.detalle_caja(id_caja)
     assert detalle["id_embarque"] is None
+
+
+def login_real(api, cx, usuario):
+    nombre = sqlval(cx, 'SELECT usuario FROM usuarios WHERE id_usuario=:id', id=usuario)
+    r = api.post('/api/v1/auth/login', json={'usuario': nombre, 'contrasena': 'NO_USAR_PARA_LOGIN'})
+    assert r.status_code == 200, r.text
+    return {'Authorization': 'Bearer ' + r.json()['token']}, r.json()
+
+
+def test_sesion_real_revocable_y_password_actualizada(pg_test, escenario):
+    app.dependency_overrides.clear()
+    with TestClient(app) as api, pg_test.connect() as cx:
+        assert api.post('/api/v1/almacen/cajas', json={'id_orden': escenario['orden_mini']}).status_code == 401
+        h, sesion = login_real(api, cx, escenario['usuario'])
+        assert sesion['modo'] == 'real'
+        assert sesion['permisos']['empaque/formar-caja'] == 'acciona'
+        almacenada = sqlval(cx, 'SELECT contrasena FROM usuarios WHERE id_usuario=:id', id=escenario['usuario'])
+        assert almacenada.startswith('scrypt$')
+        assert sesiones.verificar_password('NO_USAR_PARA_LOGIN', almacenada)
+        assert not sqlval(cx, 'SELECT EXISTS(SELECT 1 FROM sesiones_web WHERE token_hash=:token)', token=sesion['token'])
+        assert api.post('/api/v1/almacen/cajas', headers=h, json={'id_orden': escenario['orden_mini']}).status_code == 201
+        assert api.post('/api/v1/auth/logout', headers=h).status_code == 204
+        assert api.post('/api/v1/almacen/cajas', headers=h, json={'id_orden': escenario['orden_mini']}).status_code == 401
+        assert api.post('/api/v1/auth/login', json={'usuario': sesion['usuario']['numEmpleado'], 'contrasena': 'incorrecta'}).status_code == 401
+
+
+def test_sesion_vencida_y_usuario_inactivo(pg_test, escenario):
+    app.dependency_overrides.clear()
+    with TestClient(app) as api, pg_test.connect() as cx:
+        h, _ = login_real(api, cx, escenario['usuario'])
+        with pg_test.begin() as editar:
+            editar.execute(text("UPDATE sesiones_web SET fecha_expiracion=CURRENT_TIMESTAMP-INTERVAL '1 second' WHERE id_usuario=:id"), {'id': escenario['usuario']})
+        assert api.post('/api/v1/almacen/cajas', headers=h, json={'id_orden': escenario['orden_mini']}).status_code == 401
+        h, _ = login_real(api, cx, escenario['usuario'])
+        with pg_test.begin() as editar:
+            editar.execute(text('UPDATE usuarios SET activo=false WHERE id_usuario=:id'), {'id': escenario['usuario']})
+        assert api.post('/api/v1/almacen/cajas', headers=h, json={'id_orden': escenario['orden_mini']}).status_code == 401
+
+
+def test_flujo_http_con_sesion_destino_contenedor_y_motivo(pg_test, escenario):
+    app.dependency_overrides.clear()
+    with TestClient(app) as api, pg_test.connect() as cx:
+        h, _ = login_real(api, cx, escenario['usuario'])
+        b = api.post('/api/v1/almacen/cajas', headers=h, json={'id_orden': escenario['orden_mini']})
+        assert b.status_code == 201, b.text
+        caja = b.json()['id_caja']
+        assert api.post(f'/api/v1/almacen/cajas/{caja}/unidades', headers=h, json={'numero_serie': escenario['unidades']['liberada']['serie']}).status_code == 200
+        assert api.post(f'/api/v1/almacen/cajas/{caja}/cerrar', headers=h).status_code == 422
+        assert api.post(f'/api/v1/almacen/cajas/{caja}/cerrar', headers=h, json={'motivo': 'Pedido parcial revisado'}).status_code == 200
+        e = api.post('/api/v1/almacen/embarques', headers=h, json={'id_orden': escenario['orden_mini'], 'referencia': 'REF-HTTP', 'destino': 'Destino real de prueba', 'contenedor': 'CONT-HTTP'})
+        assert e.status_code == 201, e.text
+        embarque = e.json()['id_embarque']
+        assert e.json()['destino'] == 'Destino real de prueba'
+        assert e.json()['contenedor'] == 'CONT-HTTP'
+        assert e.json()['fecha_creacion']
+        assert api.post(f'/api/v1/almacen/embarques/{embarque}/cajas/{caja}', headers=h).status_code == 200
+        assert api.post(f'/api/v1/almacen/embarques/{embarque}/salida', headers=h).status_code == 200
+        assert sqlval(cx, 'SELECT estado FROM unidades WHERE id_unidad=:id', id=escenario['unidades']['liberada']['id']) == 'EMBARCADA'
+        assert sqlval(cx, "SELECT motivo FROM bitacora_general WHERE tabla_afectada='cajas' AND id_registro_afectado=:id AND accion='CERRAR_CAJA'", id=caja) == 'Pedido parcial revisado'
+
+
+def test_reapertura_por_dos_cuentas_reales_y_limites_de_supervisor(pg_test, escenario):
+    app.dependency_overrides.clear()
+    with pg_test.begin() as cx:
+        cx.execute(text("UPDATE usuarios SET id_rol=(SELECT id_rol FROM roles WHERE nombre='Supervisor de almacén' ORDER BY id_rol LIMIT 1) WHERE id_usuario=:id"), {'id': escenario['supervisor']})
+        cx.execute(text("UPDATE usuarios SET id_rol=(SELECT id_rol FROM roles WHERE nombre='Almacén/Empaque' ORDER BY id_rol LIMIT 1) WHERE id_usuario=:id"), {'id': escenario['usuario']})
+    with TestClient(app) as api, pg_test.connect() as cx:
+        h, _ = login_real(api, cx, escenario['usuario'])
+        hs, supervisor = login_real(api, cx, escenario['supervisor'])
+        assert 'empaque/formar-caja' not in supervisor['permisos']
+        assert api.post('/api/v1/almacen/cajas', headers=hs, json={'id_orden': escenario['orden_mini']}).status_code == 403
+        caja = api.post('/api/v1/almacen/cajas', headers=h, json={'id_orden': escenario['orden_mini']}).json()['id_caja']
+        api.post(f'/api/v1/almacen/cajas/{caja}/unidades', headers=h, json={'numero_serie': escenario['unidades']['liberada']['serie']})
+        api.post(f'/api/v1/almacen/cajas/{caja}/cerrar', headers=h, json={'motivo': 'Cierre parcial de prueba'})
+        solicitud = api.post(f'/api/v1/almacen/cajas/{caja}/solicitudes-reapertura', headers=h, json={'motivo': 'Revisar el contenido de la caja'})
+        assert solicitud.status_code == 201, solicitud.text
+        datos = {'id_autorizacion': solicitud.json()['id_autorizacion']}
+        assert api.post(f'/api/v1/almacen/cajas/{caja}/reabrir', headers=h, json=datos).status_code == 403
+        assert api.post(f'/api/v1/almacen/cajas/{caja}/reabrir', headers=hs, json=datos).status_code == 200

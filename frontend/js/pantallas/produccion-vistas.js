@@ -2,7 +2,7 @@ import { iniciarOperacion, campo, boton, tabla, tarjeta, formulario, valor, enla
 import { indicador, preguntar, chip } from '../componentes.js';
 import { hoyISO } from '../ui.js';
 
-const turnos = [{ valor: 1, texto: 'Turno 1' }, { valor: 2, texto: 'Turno 2' }];
+const turnosDemo = [{ valor: 1, texto: 'Turno 1' }, { valor: 2, texto: 'Turno 2' }];
 const suma = (filas, k) => filas.reduce((s, f) => s + Number(f[k] || 0), 0);
 const opcionesOrden = d => d.ordenes.map(o => ({ valor: o.id, texto: `${o.id} · ${o.modelo} · ${o.cliente}` }));
 
@@ -10,8 +10,13 @@ export function iniciarProduccion(id) {
   let filtros = { linea: '', turno: '' };
   iniciarOperacion(id, async c => {
     const d = c.datos, vista = id.split('/')[1];
+    const turnos = d.real ? d.catalogos.turnos.items.map(t => ({ valor: t.id, texto: t.nombre })) : turnosDemo;
     const puede = c.puedeAccionar;
     if (vista === 'registrar-produccion') {
+      if (!d.ordenes.length || !turnos.length) {
+        c.vista.innerHTML = tarjeta('Registrar producción', 'Se requiere una orden de producción y al menos un turno activo en PostgreSQL.');
+        return;
+      }
       c.vista.innerHTML = `${tarjeta('Nueva unidad ensamblada', formulario('form-produccion',
         campo({ id: 'rp-orden', etiqueta: 'Orden de producción', opciones: opcionesOrden(d), requerido: true }) +
         campo({ id: 'rp-turno', etiqueta: 'Turno', opciones: turnos }) +
@@ -22,7 +27,7 @@ export function iniciarProduccion(id) {
         ${tarjeta('Unidades registradas', tabla({ filas: d.unidades.filter(u => u.nueva).reverse(), columnas: columnasUnidad }))}`;
       const datosOrden = () => { const o = d.ordenes.find(o => o.id === valor('rp-orden')); document.getElementById('datos-orden').textContent = `Línea: ${o.linea} · Modelo: ${o.modelo} · Color: ${o.color} · Cliente: ${o.cliente}`; };
       datosOrden(); c.evento('#rp-orden', 'change', datosOrden);
-      if (puede) c.evento('#form-produccion', 'submit', () => c.escribir('registrarUnidad', { orden: valor('rp-orden'), turno: valor('rp-turno'), lote: valor('rp-lote'), serie: valor('rp-serie') }, 'Unidad registrada. Ya está disponible en Prueba funcional.'));
+      if (puede) c.evento('#form-produccion', 'submit', () => c.escribir('registrarUnidad', { orden: valor('rp-orden'), turno: valor('rp-turno'), lote: valor('rp-lote'), serie: valor('rp-serie') }, d.real ? 'Unidad ensamblada guardada en PostgreSQL. Pendiente de Pruebas funcionales y Calidad.' : 'Unidad registrada. Ya está disponible en Prueba funcional.'));
       return;
     }
     if (vista === 'registrar-incidencia') {
@@ -55,9 +60,9 @@ export function iniciarProduccion(id) {
     }
     if (vista === 'cierre-de-turno') {
       const campos = campo({ id: 'ct-linea', etiqueta: 'Línea', opciones: d.catalogos.lineas.items.map(l => l.codigo) }) + campo({ id: 'ct-turno', etiqueta: 'Turno', opciones: turnos });
-      c.vista.innerHTML = `${tarjeta(`Cierre del ${hoyISO()}`, formulario('form-cierre', campos, puede ? boton('Confirmar cierre de turno', { enviar: true, id: 'btn-cerrar-turno' }) + enlace('pages/produccion/solicitar-ajuste.html', 'Solicitar corrección o reapertura') : 'Solo consulta'))}
+      c.vista.innerHTML = `${tarjeta(`Cierre del ${d.fecha || hoyISO()}`, formulario('form-cierre', campos, puede ? boton('Confirmar cierre de turno', { enviar: true, id: 'btn-cerrar-turno' }) + enlace('pages/produccion/solicitar-ajuste.html', 'Solicitar corrección o reapertura') : 'Solo consulta'))}
         ${tarjeta('Cierres guardados', tabla({ filas: [...d.cierres].reverse(), columnas: [{ titulo: 'Fecha', campo: 'fecha' }, { titulo: 'Línea', campo: 'linea' }, { titulo: 'Turno', campo: 'turno' }, { titulo: 'Estado', campo: 'estado' }, { titulo: 'Nota', campo: 'nota' }, { titulo: 'Responsable', campo: 'usuario' }] }))}`;
-      const revisar = () => { const cerrado = d.cierres.some(r => r.fecha === hoyISO() && r.linea === valor('ct-linea') && r.turno === Number(valor('ct-turno')) && r.estado === 'Cerrado'); const b = document.getElementById('btn-cerrar-turno'); if (b) { b.disabled = cerrado; b.textContent = cerrado ? 'Turno ya cerrado' : 'Confirmar cierre de turno'; } };
+      const revisar = () => { const cerrado = d.cierres.some(r => r.fecha === (d.fecha || hoyISO()) && r.linea === valor('ct-linea') && r.turno === Number(valor('ct-turno')) && r.estado === 'Cerrado'); const b = document.getElementById('btn-cerrar-turno'); if (b) { b.disabled = cerrado; b.textContent = cerrado ? 'Turno ya cerrado' : 'Confirmar cierre de turno'; } };
       revisar(); c.evento('#ct-linea,#ct-turno', 'change', revisar);
       if (puede) c.evento('#form-cierre', 'submit', async () => { const p = { linea: valor('ct-linea'), turno: valor('ct-turno') }; const r = await preguntar({ titulo: 'Confirmar cierre de turno', mensaje: 'Se bloqueará el registro de nuevas unidades para esta línea y turno. Gerencia deberá autorizar su reapertura.', motivo: { etiqueta: 'Nota de cierre', requerido: true } }); if (r) await c.escribir('cerrarTurno', { ...p, motivo: r.motivo }, 'Cierre guardado.'); });
       return;

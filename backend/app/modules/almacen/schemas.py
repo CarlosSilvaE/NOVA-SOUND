@@ -23,6 +23,12 @@ class ReaperturaAutorizar(BaseModel):
 class EmbarqueCrear(BaseModel):
     id_orden: int = Field(gt=0, examples=[1])
     referencia: str = Field(min_length=1, max_length=100, examples=["GUIA-2026-001"])
+    destino: str | None = Field(default=None, max_length=200)
+    contenedor: str | None = Field(default=None, max_length=100)
+
+
+class CierreCaja(BaseModel):
+    motivo: str | None = Field(default=None, max_length=300)
 
 
 class CajaResumen(BaseModel):
@@ -62,6 +68,7 @@ class OrdenResumen(BaseModel):
     cliente: str
     id_modelo: int
     id_color: int
+    color: str | None = None
     modelo: str
     cantidad: int
     mezcla_colores: bool
@@ -74,6 +81,9 @@ class EmbarqueResumen(BaseModel):
     id_cliente: int
     cliente: str
     referencia: str | None
+    destino: str | None = None
+    contenedor: str | None = None
+    fecha_creacion: datetime | None = None
     estado: str | None
     fecha_salida: datetime | None
     cantidad_cajas: int

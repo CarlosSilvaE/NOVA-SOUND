@@ -32,7 +32,7 @@ function iniciar(pagina) {
     });
 
   cargarEn(zonaFiltros, async () => {
-    const op = await opciones();
+    const op = await opciones('calidad');
     const todos = { valor: '', texto: 'Todos' };
     return {
       html: `

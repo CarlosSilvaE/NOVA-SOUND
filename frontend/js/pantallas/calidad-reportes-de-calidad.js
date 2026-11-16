@@ -49,7 +49,7 @@ function iniciar({ sesion, contenido }) {
   }
 
   cargarEn(zonaFiltros, async () => {
-    const op = await opciones();
+    const op = await opciones('calidad');
     const todos = { valor: '', texto: 'Todos' };
     return {
       html: `

@@ -1,8 +1,15 @@
-from fastapi import FastAPI, HTTPException
+import os
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Path as ApiPath
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from app.db.database import engine
 from app.modules.almacen.router import router as almacen_router
+from app.modules.almacen import service as almacen_service
+from app.core.sesiones import router as sesiones_router
+from app.modules.gestion import router as gestion_router
 
 app = FastAPI(
     title="NOVA SOUND API",
@@ -11,8 +18,10 @@ app = FastAPI(
 )
 
 app.include_router(almacen_router)
+app.include_router(sesiones_router)
+app.include_router(gestion_router)
 
-@app.get("/")
+@app.get("/api/v1")
 def inicio():
     return {
         "proyecto": "NOVA SOUND",
@@ -22,35 +31,21 @@ def inicio():
 
 @app.get("/api/v1/health")
 def verificar_servidor():
+    try:
+        with engine.connect() as conexion:
+            conexion.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=503, detail="PostgreSQL no esta disponible") from exc
     return {
         "status": "ok",
         "servicio": "NOVA SOUND Backend",
+        "database": "ok",
     }
 
-@app.get("/api/cajas/{caja_id}")
-def obtener_caja_por_id(caja_id: str):
+@app.get("/api/cajas/{caja_id}", deprecated=True)
+def obtener_caja_por_id(caja_id: int = ApiPath(gt=0)):
     try:
-        with engine.connect() as conexion:
-            # Consulta SQL de ejemplo para buscar la caja
-            resultado = conexion.execute(
-                text("SELECT id, estado, orden, cliente, modelo FROM cajas WHERE id = :caja_id"),
-                {"caja_id": caja_id}
-            ).fetchone()
-
-            if not resultado:
-                raise HTTPException(status_code=404, detail="Caja no encontrada")
-
-            return {
-                "id": resultado.id,
-                "estado": resultado.estado,
-                "orden": resultado.orden,
-                "cliente": resultado.cliente,
-                "modelo": resultado.modelo,
-                # Aquí puedes hacer otra consulta para traer el contenido de las unidades de esta caja
-                "contenido": [
-                    { "serie": "SN-7998", "modelo": resultado.modelo, "color": "AZUL LIBERADA", "calidad": "OK" }
-                ]
-            }
+        return almacen_service.detalle_caja(caja_id)
     except SQLAlchemyError:
         raise HTTPException(
             status_code=503,
@@ -75,3 +70,9 @@ def obtener_resumen_unidades():
             status_code=503,
             detail="No fue posible consultar la base de datos",
         )
+
+
+# Registrar el frontend AL FINAL para conservar la prioridad de /api y /docs.
+FRONTEND_DIR = Path(os.getenv("FRONTEND_DIR", str(Path(__file__).resolve().parents[2] / "frontend")))
+if FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

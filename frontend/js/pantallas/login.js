@@ -3,7 +3,7 @@
 
 import { inicioDelRol, rutaA } from '../layout.js';
 import { iniciarSesion, usuariosDeEjemplo, reiniciarMocks, ErrorApi } from '../api.js';
-import { USE_MOCKS } from '../config.js';
+import { USE_MOCKS, ALMACEN_API } from '../config.js';
 import { guardarSesion, obtenerSesion, cerrarSesion } from '../session.js';
 import { campo, marcarError, mostrarAviso } from '../componentes.js';
 import { esc } from '../ui.js';
@@ -21,11 +21,13 @@ contenido.innerHTML = `
 
     <form id="form-login" class="tarjeta bg-white/85 p-6 shadow-xl shadow-black/25 backdrop-blur-sm" novalidate>
       <h1 class="text-center">Iniciar sesión</h1>
-      <p class="mt-1 text-center text-suave">Entra con tu número de empleado. Cada persona usa su propia cuenta.</p>
+      <p class="mt-1 text-center text-suave">Elige el área y entra con tu cuenta.</p>
 
       <div id="error-general" class="aviso aviso-peligro mt-4 hidden" role="alert"></div>
 
       <div class="mt-4 flex flex-col gap-4">
+        ${campo({ id: 'modo-login', etiqueta: 'Acceso', valor: ALMACEN_API ? 'almacen' : 'demo', opciones: [{ valor: 'almacen', texto: 'Sistema conectado a PostgreSQL' }, { valor: 'demo', texto: 'Demostración (incluye Pruebas y Calidad)' }] })}
+        <p id="ayuda-acceso" class="text-xs text-suave"></p>
         ${campo({ id: 'numEmpleado', etiqueta: 'Número de empleado', placeholder: 'Ej. 5002', requerido: true, extra: 'autocomplete="username" inputmode="numeric" autofocus' })}
         <div>
           <label class="etiqueta" for="contrasena">Contraseña <span class="text-peligro" aria-hidden="true">*</span></label>
@@ -96,7 +98,7 @@ formulario.addEventListener('submit', async (e) => {
   botonEntrar.disabled = true;
   botonEntrar.textContent = 'Entrando…';
   try {
-    const sesion = await iniciarSesion(numEmpleado, contrasena);
+    const sesion = await iniciarSesion(numEmpleado, contrasena, document.getElementById('modo-login').value);
     guardarSesion(sesion);
     const destino = inicioDelRol(sesion);
     if (!destino) throw new ErrorApi('Tu rol todavía no tiene pantallas asignadas. Avisa al administrador.', 403);
@@ -129,8 +131,11 @@ if (USE_MOCKS) {
           <button type="button" id="reiniciar" class="btn btn-enlace mt-3 text-xs">Restablecer los datos de ejemplo</button>
         </div>
       </details>`;
+    actualizarModo();
     document.querySelectorAll('[data-num]').forEach((b) =>
       b.addEventListener('click', () => {
+        document.getElementById('modo-login').value = 'demo';
+        actualizarModo();
         document.getElementById('numEmpleado').value = b.dataset.num;
         document.getElementById('contrasena').value = 'nova123';
         document.getElementById('entrar').focus();
@@ -142,3 +147,15 @@ if (USE_MOCKS) {
     });
   });
 }
+
+function actualizarModo() {
+  const real = document.getElementById('modo-login').value === 'almacen';
+  document.querySelector('label[for="numEmpleado"]').textContent = real ? 'Usuario o número de empleado' : 'Número de empleado';
+  document.getElementById('numEmpleado').placeholder = real ? 'Ej. admin' : 'Ej. 1001';
+  document.getElementById('numEmpleado').setAttribute('inputmode', real ? 'text' : 'numeric');
+  document.getElementById('ayuda-acceso').textContent = real ? 'Producción, Gerencia, Sistemas, Empaque y Embarques guardan sus cambios en PostgreSQL. Pruebas funcionales y Calidad continúan en demostración.' : 'Este acceso utiliza datos de ejemplo guardados en el navegador.';
+  document.querySelector('a[href*="levantar-ticket"]').href = rutaA(`pages/login/levantar-ticket.html?modo=${real ? 'real' : 'demo'}`);
+  document.getElementById('ejemplos').hidden = real;
+}
+document.getElementById('modo-login').addEventListener('change', actualizarModo);
+actualizarModo();

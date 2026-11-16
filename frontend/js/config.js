@@ -4,6 +4,9 @@
 // false = las pantallas llaman al back real en API_BASE_URL.
 export const USE_MOCKS = true;
 
-// Dirección del servidor del back. Pídesela al equipo de back.
-// Ejemplo: 'http://192.168.1.20:3000'
-export const API_BASE_URL = 'http://localhost:3000';
+// Las sesiones de Almacén usan PostgreSQL; las demás áreas conservan la demo.
+export const ALMACEN_API = true;
+
+// Docker sirve frontend y API en http://localhost:8000 (mismo origen).
+// Para un servidor separado se puede indicar su URL completa aqui.
+export const API_BASE_URL = '';

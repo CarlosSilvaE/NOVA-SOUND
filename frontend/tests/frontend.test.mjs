@@ -63,6 +63,7 @@ try {
   let caja, embarque, solicitud;
   await prueba('Login desde formulario y rechazo de cuentas inválidas', async () => {
     await ir('index.html');
+    await llenar('#modo-login', 'demo');
     const selector = await evaluar("'#'+[...document.querySelectorAll('#form-login input')].find(e=>e.type!=='password').id");
     await llenar(selector, '1001'); await llenar('#contrasena', 'nova123'); await click('#entrar'); await esperar("location.pathname.includes('tablero-de-produccion')");
     await rechazo('iniciarSesion', '1001', 'incorrecta'); await rechazo('iniciarSesion', '1003', 'nova123');
