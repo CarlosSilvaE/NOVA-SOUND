@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-
 from app.db.database import engine
+from app.modules.almacen.router import router as almacen_router
 
 app = FastAPI(
     title="NOVA SOUND API",
@@ -10,6 +10,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.include_router(almacen_router)
 
 @app.get("/")
 def inicio():
