@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Path as ApiPath
@@ -12,11 +13,21 @@ from app.core.sesiones import router as sesiones_router
 from app.modules.gestion import router as gestion_router
 from app.modules.calidad.router import router as calidad_router
 from app.modules.pruebas import router as pruebas_router
+from app.core.inicializacion import crear_sistemas_inicial
+
+
+@asynccontextmanager
+async def ciclo_de_vida(app: FastAPI):
+    crear_sistemas_inicial(engine, usuario=os.getenv('SISTEMAS_USUARIO', 'sistemas'),
+                           nombre=os.getenv('SISTEMAS_NOMBRE', 'Sistemas'),
+                           password=os.getenv('SISTEMAS_PASSWORD', ''))
+    yield
 
 app = FastAPI(
     title="NOVA SOUND API",
     description="Sistema de producción, calidad y trazabilidad",
     version="0.1.0",
+    lifespan=ciclo_de_vida,
 )
 
 app.include_router(almacen_router)

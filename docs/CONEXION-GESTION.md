@@ -12,6 +12,8 @@ Entra a `http://localhost:8000` y selecciona **Sistema conectado a PostgreSQL**.
 
 ## Usuarios y permisos
 
+La app crea una cuenta inicial con rol **Sistemas** al arrancar, tomando `SISTEMAS_USUARIO` (por defecto `sistemas`), `SISTEMAS_NOMBRE` y `SISTEMAS_PASSWORD` del `.env`. Define una contraseña de al menos ocho caracteres. Esta cuenta puede dar de alta al resto de los usuarios desde Sistemas, sin necesitar una captura manual en PostgreSQL. La inicialización se registra una sola vez y no sobrescribe cambios, bloqueos ni contraseñas en reinicios posteriores.
+
 El Administrador conserva el acceso operativo anterior y recibe las nuevas áreas. Desde **Sistemas → Usuarios → Nuevo usuario**, crea las cuentas del personal y asigna su rol. Se puede usar un número de empleado o un identificador como `jperez`; la contraseña nueva requiere al menos ocho caracteres.
 
 El Operador registra producción e incidencias. El Líder de línea cierra turnos y solicita ajustes. El Subgerente o Gerente de Producción resuelve solicitudes. El Gerente de Planta consulta indicadores. Los permisos se guardan por rol y el servidor los consulta en cada petición; después de editar un rol, vuelve a iniciar sesión para actualizar sus menús. Los roles de Calidad también utilizan el acceso conectado al aplicar la migración 08.

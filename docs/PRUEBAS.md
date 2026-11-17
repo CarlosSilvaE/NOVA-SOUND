@@ -15,10 +15,10 @@ Si el navegador está en otra ubicación, define `NOVA_TEST_BROWSER` con la ruta
 | Suite | Cobertura |
 |---|---|
 | `almacenApi.test.mjs` | Cliente HTTP y manejo de errores; 3 pruebas. |
-| Pruebas Python de `backend/tests` | 58 pruebas: 27 de contratos/unidad y 31 de integración PostgreSQL. |
+| Pruebas Python de `backend/tests` | 69 pruebas: 29 de contratos/unidad y 40 de integración PostgreSQL. |
 | `frontend.test.mjs` | 17 escenarios de demostración y carga de las 41 pantallas. |
 | `almacen-real.test.mjs` | Las 13 pantallas de Almacén con dos cuentas reales, solicitudes y reaperturas, cajas y embarques persistidos. |
-| `gestion-real.test.mjs` y `calidad-flujo.mjs` | 28 pantallas de Producción, Gerencia, Sistemas, Pruebas y Calidad; captura, cierre, reapertura y flujo completo hasta embarque con cuentas reales. |
+| `gestion-real.test.mjs` y `calidad-flujo.mjs` | Cuenta Sistemas creada al arrancar y alta de un usuario desde su formulario; 28 pantallas de Producción, Gerencia, Sistemas, Pruebas y Calidad y flujo completo hasta embarque. |
 | Verificación SQL final | Confirma que la unidad y la caja quedaron EMBARCADA, el embarque ENVIADO y los datos de destino y contenedor se conservaron. |
 
 Los números corresponden a las suites actuales y pueden aumentar al añadir pruebas.
@@ -52,4 +52,4 @@ docker build --target test -f backend/Dockerfile -t nova-sound-tests .
 docker run --rm nova-sound-tests
 ```
 
-Este último comando da actualmente **27 aprobadas y 31 omitidas**: esas 31 requieren PostgreSQL y se incluyen al usar el ejecutor completo. El script `backend/scripts/simular_almacen_test.py` es una herramienta manual de simulación, no una suite de pytest; el recorrido completo automatizado ya se valida con el ejecutor.
+Este último comando da actualmente **29 aprobadas y 40 omitidas**: esas 40 requieren PostgreSQL y se incluyen al usar el ejecutor completo. El script `backend/scripts/simular_almacen_test.py` es una herramienta manual de simulación, no una suite de pytest; el recorrido completo automatizado ya se valida con el ejecutor.

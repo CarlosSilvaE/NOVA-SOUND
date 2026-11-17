@@ -17,6 +17,9 @@ DB_NAME=nova_sounds
 DB_USER=nova_app
 DB_PASSWORD='escribe_aqui_tu_contrasena'
 APP_PORT=8000
+SISTEMAS_USUARIO=sistemas
+SISTEMAS_NOMBRE=Sistemas
+SISTEMAS_PASSWORD='elige_una_contrasena_de_al_menos_8_caracteres'
 ```
 
 `DB_USER` y `DB_PASSWORD` son el usuario y contraseña de PostgreSQL. No son las cuentas de Login del frontend. Las comillas simples permiten escribir `$` y `#` sin que Compose los interprete como variables o comentarios. El `.env` se excluye de Git y de la imagen Docker.
@@ -27,6 +30,10 @@ Después:
 docker compose up -d --build --wait
 docker compose ps
 ```
+
+Al arrancar, la API crea una sola vez la cuenta `SISTEMAS_USUARIO` con el rol **Sistemas** y la contraseña `SISTEMAS_PASSWORD`. Entra en **Sistema conectado a PostgreSQL** y usa **Sistemas → Usuarios** para registrar al personal. Esta cuenta administra usuarios, roles, catálogos, parámetros y tickets; sus permisos iniciales corresponden al área de Sistemas.
+
+La contraseña se almacena con scrypt y no se imprime en los logs. Los reinicios no duplican la cuenta, no restablecen su contraseña ni revierten bloqueos o cambios de permisos. Después del alta, cambia contraseñas y estados desde Usuarios; editar el `.env` no restablece la cuenta. El alta funciona también sobre un volumen existente con las migraciones aplicadas, conservando los demás usuarios. Una cuenta existente con otro rol y el mismo identificador impide el alta para evitar sobrescribirla.
 
 | Dirección | Servicio |
 |---|---|
@@ -55,7 +62,7 @@ La base se crea usando `POSTGRES_DB`. Al iniciar un volumen vacío se ejecutan, 
 5. `06_integracion_frontend.sql` — sesiones y datos de Empaque/Embarques.
 6. `07_produccion_sistemas_gerencia.sql` — permisos, usuarios, cierres, producción y Sistemas.
 7. `08_calidad_pruebas.sql` — resultados funcionales, Calidad, defectos, retrabajos y permisos nuevos.
-6. `03_verificacion_postgresql.sql` — consultas de comprobación.
+8. `03_verificacion_postgresql.sql` — consultas de comprobación.
 
 `00_crear_base.sql` no se monta: la imagen de PostgreSQL ya crea la base solicitada. El esquema se administra con los SQL del proyecto; no se ejecuta `Base.metadata.create_all()`.
 

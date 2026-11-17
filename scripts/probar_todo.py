@@ -23,7 +23,7 @@ def main():
             raise SystemExit(f'Falta {program}. Instala Docker Desktop y Node.js 22 o superior.')
     env = os.environ.copy()
     # El entorno del usuario no debe sustituir las credenciales de pruebas.
-    for name in ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'APP_PORT', 'ALMACEN_RUN_INTEGRATION', 'ALMACEN_TEST_DB_NAME']:
+    for name in ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'APP_PORT', 'ALMACEN_RUN_INTEGRATION', 'ALMACEN_TEST_DB_NAME', 'SISTEMAS_USUARIO', 'SISTEMAS_NOMBRE', 'SISTEMAS_PASSWORD']:
         env.pop(name, None)
     version = subprocess.check_output(['node', '-p', 'process.versions.node'], text=True).strip()
     if int(version.split('.')[0]) < 22:
@@ -49,7 +49,8 @@ def main():
     project = 'nova-test-' + uuid.uuid4().hex[:10]
     folder = Path(tempfile.mkdtemp(prefix=project+'-'))
     env_file = folder/'pruebas.env'
-    env_file.write_text(f'DB_NAME=nova_sounds\nDB_USER=nova_test\nDB_PASSWORD={secrets.token_urlsafe(32)}\nAPP_PORT={port}\n', encoding='utf-8')
+    password_sistemas = secrets.token_urlsafe(24)
+    env_file.write_text(f'DB_NAME=nova_sounds\nDB_USER=nova_test\nDB_PASSWORD={secrets.token_urlsafe(32)}\nAPP_PORT={port}\nSISTEMAS_USUARIO=sistemas\nSISTEMAS_NOMBRE=Sistemas\nSISTEMAS_PASSWORD={password_sistemas}\n', encoding='utf-8')
     fixture_file = folder/'fixture.json'
     compose = ['docker', 'compose', '-f', str(ROOT/'compose.yaml'), '--env-file', str(env_file), '--project-name', project]
     image = project+'-tests'
@@ -94,6 +95,7 @@ def main():
                    'supervisor': 'qa_supervisor_web', 'passwordSupervisor': secrets.token_urlsafe(24),
                    'admin': 'qa_admin_web', 'passwordAdmin': secrets.token_urlsafe(24),
                    'passwordGeneral': secrets.token_urlsafe(24),
+                   'sistemas': 'sistemas', 'passwordSistemas': password_sistemas,
                    'serie': 'QA-WEB-LIBERADA', 'serieRetenida': 'QA-WEB-RETENIDA'}
         bootstrap = container+['-i', '-e', 'NOVA_ISOLATED_TESTS=1', '-e', 'NOVA_TEST_PROJECT='+project, image, 'python', 'tests/preparar_fixture_web.py']
         content = run('7. Preparar cuentas y registros QA privados', bootstrap, capture=True, input_text=json.dumps(fixture))

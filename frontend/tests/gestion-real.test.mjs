@@ -41,6 +41,15 @@ try {
   const api=(nombre,...args)=>evaluate(`import('/js/api.js').then(a=>a[${JSON.stringify(nombre)}](...${JSON.stringify(args)}))`);
   const paso=t=>{report.pasos.push(t);console.log('OK',t);};
   const login=async(user,password)=>{await go('index.html');await evaluate("import('/js/session.js').then(s=>s.cerrarSesion())");await fill('#modo-login','almacen');await fill('#numEmpleado',user);await fill('#contrasena',password);await click('#entrar');await wait("location.pathname.includes('/pages/')");assert.equal(await evaluate("JSON.parse(sessionStorage.getItem('novasound.sesion')).modo"),'real');};
+  await login(fixture.sistemas, fixture.passwordSistemas);
+  assert.equal(await evaluate("JSON.parse(sessionStorage.getItem('novasound.sesion')).usuario.rol"),'Sistemas');
+  await go('pages/sistemas/nuevo-o-editar-usuario.html');
+  await fill('#nombre','Operador desde Sistemas inicial');await fill('#numEmpleado','qa_sistemas_operador_web');await fill('#rol','Operador');await fill('#contrasena',fixture.passwordGeneral);await click('#guardar');
+  await wait("location.pathname.endsWith('/usuarios.html')");
+  assert.equal((await api('usuarios','qa_sistemas_operador_web')).length,1);
+  await login('qa_sistemas_operador_web',fixture.passwordGeneral);
+  assert.equal((await api('consultarOperacion','produccion')).real,true);
+  paso('La cuenta Sistemas creada al arrancar inicia sesion y da de alta otro usuario desde el formulario');
   await login(fixture.admin, fixture.passwordAdmin);
   const roles=await api('rolesPermisos');
   assert.ok(['calidad','prueba-funcional'].every(area=>roles.pantallas.some(p=>p.area===area)));

@@ -49,6 +49,8 @@ def main():
             assert scalar("SELECT count(*) FROM retrabajo WHERE id_unidad=:id AND resultado='Corregido'",id=full['id_unidad']) == 1
             assert scalar("SELECT count(*) FROM calidad WHERE id_unidad=:id AND estado='LIBERADA'",id=full['id_unidad']) == 1
             assert 'calidad/reportes-de-calidad' not in scalar("SELECT permisos FROM roles WHERE nombre='Inspector de Calidad' LIMIT 1")
+            assert scalar('SELECT count(*) FROM usuarios u JOIN roles r USING(id_rol) WHERE u.usuario=:u AND r.nombre=\'Sistemas\'',u=fixture['sistemas']) == 1
+            assert scalar("SELECT count(*) FROM usuarios WHERE usuario='qa_sistemas_operador_web'") == 1
             print('SQL verificado: embarque enviado; producción, incidencia y reapertura persistidas; unidades nuevas sin pruebas ni inspecciones inventadas.')
             return
         ids = []
