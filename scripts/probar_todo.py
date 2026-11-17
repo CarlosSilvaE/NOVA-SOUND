@@ -84,7 +84,7 @@ def main():
         run('3. Iniciar PostgreSQL y API aislados', compose+['up', '-d', '--build', '--wait', '--wait-timeout', '180'])
         run('4. Construir imagen de pruebas del backend', ['docker', 'build', '--target', 'test', '-f', 'backend/Dockerfile', '-t', image, '.'])
         sql_files = ' '.join('/docker-entrypoint-initdb.d/'+name for name in [
-            '010_esquema.sql', '020_datos_demo.sql', '040_almacen.sql', '050_modelos.sql', '060_integracion_frontend.sql', '070_gestion.sql'])
+            '010_esquema.sql', '020_datos_demo.sql', '040_almacen.sql', '050_modelos.sql', '060_integracion_frontend.sql', '070_gestion.sql', '080_calidad_pruebas.sql'])
         prepare = 'createdb -U "$POSTGRES_USER" nova_sounds_test && for script in '+sql_files+'; do psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d nova_sounds_test -f "$script" > /dev/null || exit 1; done'
         run('5. Preparar base separada de integracion', compose+['exec', '-T', 'db', 'sh', '-c', prepare])
         container = ['docker', 'run', '--rm', '--env-file', str(env_file), '--network', project+'_default', '-e', 'DB_HOST=db', '-e', 'DB_PORT=5432', '-e', 'PYTHONPATH=/app/backend']
@@ -103,6 +103,7 @@ def main():
         run('9. Frontend real con PostgreSQL y 13 pantallas de Almacen', ['node', 'frontend/tests/almacen-real.test.mjs', str(fixture_file)])
         run('9b. Produccion, cierres, Gerencia y Sistemas en navegador real', ['node', 'frontend/tests/gestion-real.test.mjs', str(fixture_file)])
         run('9c. Verificar migracion 07 reejecutable con datos existentes', compose+['exec', '-T', 'db', 'sh', '-c', 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /docker-entrypoint-initdb.d/070_gestion.sql > /dev/null'])
+        run('9d. Verificar migracion 08 sin sobrescribir permisos de Calidad', compose+['exec', '-T', 'db', 'sh', '-c', 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /docker-entrypoint-initdb.d/080_calidad_pruebas.sql > /dev/null'])
         run('10. Verificar resultado final directamente en SQL', bootstrap+['--verificar'], input_text=json.dumps(fixture))
     except (RuntimeError, subprocess.SubprocessError, OSError, ValueError) as exc:
         failed = True

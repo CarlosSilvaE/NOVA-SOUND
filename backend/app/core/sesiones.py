@@ -86,7 +86,7 @@ def login(datos: Credenciales, response: Response):
             from app.core.acceso import permisos_reales
             permisos, acciones = permisos_reales(u['permisos'], u['acciones'])
             if not any(not p.startswith('login/') for p in permisos):
-                raise HTTPException(403, 'Este rol todavía no tiene áreas conectadas. Pruebas funcionales y Calidad siguen en demostración.')
+                raise HTTPException(403, 'Este rol no tiene pantallas habilitadas. Solicita acceso a Sistemas.')
             if not u['contrasena'].startswith('scrypt$'):
                 cx.execute(text('UPDATE usuarios SET contrasena=:hash WHERE id_usuario=:id'), {'hash': hash_password(datos.contrasena), 'id': u['id_usuario']})
             token = secrets.token_urlsafe(32)

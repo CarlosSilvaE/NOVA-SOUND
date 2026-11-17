@@ -4,7 +4,7 @@ HTML + Tailwind CSS + JavaScript sin framework. No hay que instalar nada ni comp
 
 ## Acceso real de Almacén y Embarques
 
-En Docker, abre http://localhost:8000 y selecciona **Sistema conectado a PostgreSQL**. Producción, cierres, Gerencia, Sistemas, Empaque y Embarques usan datos reales; Pruebas funcionales y Calidad siguen en demostración. Usa una cuenta de la tabla PostgreSQL `usuarios`; el seed original incluye `admin` / `pass123`, si no fue cambiado. Las cuentas `4001` / `nova123` son de la demo y no autentican en PostgreSQL. Consulta [la guía de Gestión](../docs/CONEXION-GESTION.md) para usuarios, permisos, cierres y la migración 07.
+En Docker, abre http://localhost:8000 y selecciona **Sistema conectado a PostgreSQL**. Producción, cierres, Gerencia, Sistemas, Empaque y Embarques usan datos reales; Pruebas funcionales y Calidad también usan PostgreSQL mediante la migración 08; consulta [su guía](../docs/CONEXION-CALIDAD-PRUEBAS.md). Usa una cuenta de la tabla PostgreSQL `usuarios`; el seed original incluye `admin` / `pass123`, si no fue cambiado. Las cuentas `4001` / `nova123` son de la demo y no autentican en PostgreSQL. Consulta [la guía de Gestión](../docs/CONEXION-GESTION.md) para usuarios, permisos, cierres y la migración 07.
 
 Las 13 pantallas de esas áreas guardan por API al entrar con una sesión real. Muestran **Datos de PostgreSQL** y conservan cajas, contenido, solicitudes, destino, contenedor y salida en la base de datos. Para las demás áreas elige **Demostración de otras áreas**. Más detalles y creación de usuarios: [conexión de Almacén](../docs/CONEXION-ALMACEN.md).
 

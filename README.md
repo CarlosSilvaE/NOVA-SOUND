@@ -17,7 +17,7 @@ docker compose up -d --build --wait
 
 Abre **http://localhost:8000** para el frontend y **http://localhost:8000/docs** para la API. PostgreSQL se inicializa con el esquema, datos de ejemplo y migraciones de Almacén en un volumen persistente.
 
-Producción, cierres, Gerencia, Sistemas, Empaque y Embarques operan con PostgreSQL seleccionando **Sistema conectado a PostgreSQL** en el login. **Pruebas funcionales y Calidad continúan en demostración**. Consulta [la conexión de Gestión](docs/CONEXION-GESTION.md), [la conexión de Almacén](docs/CONEXION-ALMACEN.md) y [la guía Docker](docs/DOCKER.md). Las pruebas completas se ejecutan con `python scripts/probar_todo.py` en contenedores y bases temporales.
+Todas las áreas operan con PostgreSQL seleccionando **Sistema conectado a PostgreSQL** en el login: Producción, Pruebas funcionales, Calidad, cierres, Gerencia, Sistemas, Empaque y Embarques. Consulta [Calidad y Pruebas](docs/CONEXION-CALIDAD-PRUEBAS.md), [Gestión](docs/CONEXION-GESTION.md), [Almacén](docs/CONEXION-ALMACEN.md) y [Docker](docs/DOCKER.md). Las pruebas completas se ejecutan con `python scripts/probar_todo.py` en contenedores y bases temporales; la demostración sigue disponible por separado.
 
 ## Todas las pruebas
 

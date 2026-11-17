@@ -331,6 +331,56 @@
       "id": "sistemas/parametros",
       "area": "sistemas",
       "nombre": "Par\u00e1metros"
+    },
+    {
+      "id": "prueba-funcional/escanear-pieza-o-lote",
+      "area": "prueba-funcional",
+      "nombre": "Escanear pieza o lote"
+    },
+    {
+      "id": "prueba-funcional/registro-de-pruebas-funcionales",
+      "area": "prueba-funcional",
+      "nombre": "Registro de pruebas funcionales"
+    },
+    {
+      "id": "prueba-funcional/unidades-por-probar",
+      "area": "prueba-funcional",
+      "nombre": "Unidades por probar"
+    },
+    {
+      "id": "prueba-funcional/historial-de-pruebas",
+      "area": "prueba-funcional",
+      "nombre": "Historial de pruebas"
+    },
+    {
+      "id": "calidad/resumen-de-calidad",
+      "area": "calidad",
+      "nombre": "Resumen de calidad"
+    },
+    {
+      "id": "calidad/inspeccion-de-unidad",
+      "area": "calidad",
+      "nombre": "Inspecci\u00f3n de unidad"
+    },
+    {
+      "id": "calidad/retenciones",
+      "area": "calidad",
+      "nombre": "Retenciones"
+    },
+    {
+      "id": "calidad/retrabajos",
+      "area": "calidad",
+      "nombre": "Retrabajos"
+    },
+    {
+      "id": "calidad/historial-de-la-unidad",
+      "area": "calidad",
+      "nombre": "Historial de la unidad"
+    },
+    {
+      "id": "calidad/reportes-de-calidad",
+      "area": "calidad",
+      "nombre": "Reportes de calidad"
     }
   ],
   "acciones": [
@@ -365,6 +415,14 @@
     {
       "id": "administrar-usuarios-roles-catalogos-y-parametros",
       "nombre": "Administrar usuarios, roles, cat\u00e1logos y par\u00e1metros"
+    },
+    {
+      "id": "registrar-resultado-de-prueba-funcional",
+      "nombre": "Registrar resultado de prueba funcional"
+    },
+    {
+      "id": "dar-disposicion-de-calidad-liberar-retener-retrabajo-scrap",
+      "nombre": "Dar disposici\u00f3n de Calidad (liberar, retener, retrabajo, scrap)"
     }
   ],
   "version": 2

@@ -18,6 +18,7 @@ import * as mock from './mockapi.js';
 import * as mockCalidad from './mockapi-calidad.js';
 import * as mockOperacion from './mockapi-operacion.js';
 import { consultarAlmacen, operarAlmacen } from './almacen-backend.js';
+import { crearClienteCalidad } from '../integraciones/calidadApi.mjs';
 
 export { ErrorApi };
 export { reiniciarMocks } from './mockdb.js';
@@ -25,6 +26,7 @@ export { reiniciarMocks } from './mockdb.js';
 const RAIZ = new URL('../', import.meta.url);
 export const sesionReal = () => ALMACEN_API && ['real', 'almacen'].includes(obtenerSesion()?.modo);
 const gestion = (ruta, opciones) => pedir('/api/v1/gestion' + ruta, opciones);
+const calidadReal = crearClienteCalidad(pedir);
 
 async function pedir(ruta, { metodo = 'GET', cuerpo, publico = false } = {}) {
   const encabezados = { 'Content-Type': 'application/json' };
@@ -77,11 +79,11 @@ export const iniciarSesion = (numEmpleado, contrasena, modo = 'demo') =>
 
 // Solo para la pantalla de login en modo ejemplo: lista de usuarios con los que se puede probar.
 export const usuariosDeEjemplo = () => (USE_MOCKS ? mock.usuariosDeEjemplo() : Promise.resolve([]));
-export const seriesDeEjemplo = (area = 'calidad') => (sesionReal() && area === 'gerencia' ? Promise.resolve([]) : USE_MOCKS ? mock.seriesDeEjemplo() : Promise.resolve([]));
+export const seriesDeEjemplo = (area = 'calidad') => (sesionReal() ? Promise.resolve([]) : USE_MOCKS ? mock.seriesDeEjemplo() : Promise.resolve([]));
 
 // ---------------------------------------------------------------- Opciones de los filtros
 // { lineas: ['L1',…], turnos: [{valor, nombre}], modelos: [...], ordenes: [{id, cliente, modelo, color}], clientes: [...], categoriasDefecto: [...] }
-export const opciones = (area = 'gerencia') => (sesionReal() && area !== 'calidad' ? gestion('/opciones') : USE_MOCKS ? mock.opciones() : pedir('/opciones'));
+export const opciones = (area = 'gerencia') => (sesionReal() ? gestion('/opciones') : USE_MOCKS ? mock.opciones() : pedir('/opciones'));
 
 // ---------------------------------------------------------------- Gerencia
 // filtros: { turno, linea, modelo, orden } (vacío = todos)
@@ -101,44 +103,44 @@ export const resolverAutorizacion = (id, datos) =>
   sesionReal() ? gestion(`/autorizaciones/${encodeURIComponent(id)}/resolver`, { metodo: 'POST', cuerpo: datos }) : USE_MOCKS ? mock.resolverAutorizacion(id, datos) : pedir(`/autorizaciones/${encodeURIComponent(id)}/resolver`, { metodo: 'POST', cuerpo: datos });
 
 // Datos de la unidad + historial + caja + embarque. 404 si la serie no existe.
-export const unidadPorSerie = (serie, area = 'calidad') => (sesionReal() && area === 'gerencia' ? gestion(`/unidades/${encodeURIComponent(serie)}`) : USE_MOCKS ? mock.unidadPorSerie(serie) : pedir(`/unidades/${encodeURIComponent(serie)}`));
+export const unidadPorSerie = (serie, area = 'calidad') => (sesionReal() ? (area === 'gerencia' ? gestion(`/unidades/${encodeURIComponent(serie)}`) : calidadReal.buscarUnidad(serie)) : USE_MOCKS ? mock.unidadPorSerie(serie) : pedir(`/unidades/${encodeURIComponent(serie)}`));
 
 // ---------------------------------------------------------------- Calidad
 // Siempre es el día de hoy. filtros: { turno, linea } (vacío = todos)
 // → { disposiciones: { liberadas, retenidas, retrabajo, scrap },
 //     defectosPorCategoria: [{ categoria, cantidad, porcentaje }],
 //     pendientes: [{ serie, modelo, color, lote, linea, turno, hora, fecha }]  (unidades probadas que esperan inspección) }
-export const resumenCalidad = (filtros) => (USE_MOCKS ? mockCalidad.resumenCalidad(filtros) : pedir(`/calidad/resumen${consulta(filtros)}`));
+export const resumenCalidad = (filtros) => (sesionReal() ? calidadReal.obtenerResumen(filtros) : USE_MOCKS ? mockCalidad.resumenCalidad(filtros) : pedir(`/calidad/resumen${consulta(filtros)}`));
 
 // Inspección de una unidad en estado PROBADA (los datos de la unidad salen de unidadPorSerie).
 // datos: { defectos: [{ categoria, defecto, causa }], observaciones, disposicion: 'LIBERADA' | 'EN_RETENCION' | 'RETRABAJO' | 'SCRAP' }
 // Para liberar no puede haber defectos; para las demás disposiciones, al menos uno. Necesita la acción de disposición de Calidad.
 export const guardarInspeccion = (serie, datos) =>
-  USE_MOCKS ? mockCalidad.guardarInspeccion(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/inspeccion`, { metodo: 'POST', cuerpo: datos });
+  sesionReal() ? calidadReal.registrarInspeccion(serie, datos) : USE_MOCKS ? mockCalidad.guardarInspeccion(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/inspeccion`, { metodo: 'POST', cuerpo: datos });
 
 // filtros: { q (serie), linea, modelo, fecha: 'YYYY-MM-DD' }
 // → { filas: [{ serie, modelo, color, orden, lote, linea, turno, fecha, hora, inspector, categoria, motivo, observaciones }],
 //     resumen: { retenidas, retenidasHoy } }
-export const retenciones = (filtros) => (USE_MOCKS ? mockCalidad.retenciones(filtros) : pedir(`/calidad/retenciones${consulta(filtros)}`));
+export const retenciones = (filtros) => (sesionReal() ? calidadReal.retenciones(filtros) : USE_MOCKS ? mockCalidad.retenciones(filtros) : pedir(`/calidad/retenciones${consulta(filtros)}`));
 
 // datos: { disposicion: 'LIBERADA' (liberar) | 'RETRABAJO' (enviar a retrabajo) | 'EN_RETENCION' (mantener) | 'SCRAP', observaciones }
 // Salvo «mantener», las observaciones son obligatorias (queda quién, cuándo y por qué).
 export const resolverRetencion = (serie, datos) =>
-  USE_MOCKS ? mockCalidad.resolverRetencion(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/retencion/resolver`, { metodo: 'POST', cuerpo: datos });
+  sesionReal() ? calidadReal.resolverRetencion(serie, datos) : USE_MOCKS ? mockCalidad.resolverRetencion(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/retencion/resolver`, { metodo: 'POST', cuerpo: datos });
 
 // filtros: { q (serie), linea, modelo, fecha, estado: 'Pendiente' | 'Finalizado' }
 // → { filas: [{ serie, modelo, color, orden, lote, linea, turno, fecha, estado, categoria, motivo, causa, fechaRetrabajo, descripcion, resultado, observaciones }],
 //     resumen: { pendientes, finalizadas } }
-export const retrabajos = (filtros) => (USE_MOCKS ? mockCalidad.retrabajos(filtros) : pedir(`/calidad/retrabajos${consulta(filtros)}`));
+export const retrabajos = (filtros) => (sesionReal() ? calidadReal.retrabajos(filtros) : USE_MOCKS ? mockCalidad.retrabajos(filtros) : pedir(`/calidad/retrabajos${consulta(filtros)}`));
 
 // datos: { descripcion, resultado: 'Corregido' | 'No corregido', observaciones }. La unidad vuelve a Calidad para una nueva inspección.
 export const guardarRetrabajo = (serie, datos) =>
-  USE_MOCKS ? mockCalidad.guardarRetrabajo(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/retrabajo`, { metodo: 'POST', cuerpo: datos });
+  sesionReal() ? calidadReal.guardarRetrabajo(serie, datos) : USE_MOCKS ? mockCalidad.guardarRetrabajo(serie, datos) : pedir(`/unidades/${encodeURIComponent(serie)}/retrabajo`, { metodo: 'POST', cuerpo: datos });
 
 // filtros: { desde, hasta, turno, linea, modelo }
 // → { desde, hasta, total, disposiciones: { liberadas, retenidas, retrabajo, scrap }, totalDefectos,
 //     defectosPorCategoria: [{ categoria, cantidad, porcentaje }], detalleDefectos: [{ categoria, defecto, cantidad, porcentaje }] }
-export const reporteCalidad = (filtros) => (USE_MOCKS ? mockCalidad.reporteCalidad(filtros) : pedir(`/calidad/reportes${consulta(filtros)}`));
+export const reporteCalidad = (filtros) => (sesionReal() ? calidadReal.reportes(filtros) : USE_MOCKS ? mockCalidad.reporteCalidad(filtros) : pedir(`/calidad/reportes${consulta(filtros)}`));
 
 // ---------------------------------------------------------------- Tickets de soporte
 // Se llama SIN sesión (la persona no puede entrar). Devuelve { id }.
@@ -164,7 +166,7 @@ export const guardarRol = (nombre, datos) =>
 
 // ---------------------------------------------------------------- Catálogos y parámetros
 // { modelos: { nombre: 'Modelos', items: [{codigo, nombre, estado}] }, lineas: {...}, … }
-export const catalogos = (area = 'sistemas') => (sesionReal() && area === 'sistemas' ? gestion('/catalogos') : USE_MOCKS ? mock.catalogos() : pedir('/catalogos'));
+export const catalogos = (area = 'sistemas') => (sesionReal() ? (area === 'sistemas' ? gestion('/catalogos') : calidadReal.catalogos()) : USE_MOCKS ? mock.catalogos() : pedir('/catalogos'));
 export const guardarElementoCatalogo = (tipo, elemento) =>
   sesionReal() ? gestion(`/catalogos/${encodeURIComponent(tipo)}`, { metodo: 'POST', cuerpo: elemento }) : USE_MOCKS ? mock.guardarElementoCatalogo(tipo, elemento) : pedir(`/catalogos/${encodeURIComponent(tipo)}`, { metodo: 'POST', cuerpo: elemento });
 export const cambiarEstadoCatalogo = (tipo, codigo, estado) =>
@@ -178,5 +180,5 @@ export const guardarParametros = (datos) => (sesionReal() ? gestion('/parametros
 
 // Contrato común de las pantallas operativas. La demo funciona sin servidor de API.
 const almacenReal = area => sesionReal() && ['empaque', 'embarques'].includes(area);
-export const consultarOperacion = (area, contexto = {}) => almacenReal(area) ? consultarAlmacen(contexto) : sesionReal() && area === 'produccion' ? gestion('/operacion') : USE_MOCKS ? mockOperacion.consultarOperacion() : pedir('/operacion');
-export const operar = (accion, datos, area) => almacenReal(area) ? operarAlmacen(accion, datos) : sesionReal() && area === 'produccion' ? gestion(`/operacion/${encodeURIComponent(accion)}`, { metodo: 'POST', cuerpo: datos }) : USE_MOCKS ? mockOperacion.operar(accion, datos) : pedir(`/operacion/${encodeURIComponent(accion)}`, { metodo: 'POST', cuerpo: datos });
+export const consultarOperacion = (area, contexto = {}) => almacenReal(area) ? consultarAlmacen(contexto) : sesionReal() && area === 'prueba-funcional' ? pedir('/api/v1/pruebas/operacion') : sesionReal() && area === 'produccion' ? gestion('/operacion') : USE_MOCKS ? mockOperacion.consultarOperacion() : pedir('/operacion');
+export const operar = (accion, datos, area) => almacenReal(area) ? operarAlmacen(accion, datos) : sesionReal() && area === 'prueba-funcional' ? (accion === 'guardarPrueba' ? pedir('/api/v1/pruebas/resultado', { metodo: 'POST', cuerpo: datos }) : Promise.reject(new ErrorApi('Operacion de pruebas no valida.', 404))) : sesionReal() && area === 'produccion' ? gestion(`/operacion/${encodeURIComponent(accion)}`, { metodo: 'POST', cuerpo: datos }) : USE_MOCKS ? mockOperacion.operar(accion, datos) : pedir(`/operacion/${encodeURIComponent(accion)}`, { metodo: 'POST', cuerpo: datos });

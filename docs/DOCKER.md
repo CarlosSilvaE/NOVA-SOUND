@@ -54,6 +54,7 @@ La base se crea usando `POSTGRES_DB`. Al iniciar un volumen vacío se ejecutan, 
 4. `05_catalogo_modelos_oficiales.sql` — catálogo oficial.
 5. `06_integracion_frontend.sql` — sesiones y datos de Empaque/Embarques.
 6. `07_produccion_sistemas_gerencia.sql` — permisos, usuarios, cierres, producción y Sistemas.
+7. `08_calidad_pruebas.sql` — resultados funcionales, Calidad, defectos, retrabajos y permisos nuevos.
 6. `03_verificacion_postgresql.sql` — consultas de comprobación.
 
 `00_crear_base.sql` no se monta: la imagen de PostgreSQL ya crea la base solicitada. El esquema se administra con los SQL del proyecto; no se ejecuta `Base.metadata.create_all()`.
@@ -102,7 +103,7 @@ Para Docker solo se configura el `.env` de la **raíz**. Compose pasa las variab
 
 Este conjunto levanta el frontend, la API de Almacén y PostgreSQL. El login permite seleccionar **Almacén y Embarques** para operar con la base real, o **Demostración de otras áreas** para conservar las pruebas locales. No se transfieren automáticamente a PostgreSQL los registros guardados previamente en el navegador.
 
-La API autentica las escrituras mediante sesiones reales y revocables; `ALMACEN_DEV_MODE` permanece en `0`. Las 13 pantallas de Empaque/Embarques y las 18 de Producción, Gerencia y Sistemas están conectadas. Pruebas funcionales y Calidad siguen en demo. Consulta [la guía de Almacén](CONEXION-ALMACEN.md) para la migración 06 y [la guía de Gestión](CONEXION-GESTION.md) para la migración 07 sobre un volumen existente. Mantén `USE_MOCKS`: el acceso real se selecciona en el login.
+La API autentica las escrituras mediante sesiones reales y revocables; `ALMACEN_DEV_MODE` permanece en `0`. Las 41 pantallas de todas las áreas están conectadas, incluidas Pruebas funcionales y Calidad mediante la [migración 08](CONEXION-CALIDAD-PRUEBAS.md). Consulta [la guía de Almacén](CONEXION-ALMACEN.md) para la migración 06 y [la guía de Gestión](CONEXION-GESTION.md) para la migración 07 sobre un volumen existente. Mantén `USE_MOCKS`: el acceso real se selecciona en el login.
 
 ## Pruebas del backend dentro de Docker
 
@@ -113,7 +114,7 @@ docker build --target test -f backend/Dockerfile -t nova-sound-tests .
 docker run --rm nova-sound-tests
 ```
 
-Las pruebas de integración PostgreSQL permanecen omitidas hasta habilitar explícitamente `ALMACEN_RUN_INTEGRATION=1` y preparar una base separada cuyo nombre termine en `_test`, con las migraciones 04, 05, 06 y 07. El ejecutor `python scripts/probar_todo.py` prepara esa base automáticamente. No deben ejecutarse sobre la base de la aplicación.
+Las pruebas de integración PostgreSQL permanecen omitidas hasta habilitar explícitamente `ALMACEN_RUN_INTEGRATION=1` y preparar una base separada cuyo nombre termine en `_test`, con las migraciones 04, 05, 06, 07 y 08. El ejecutor `python scripts/probar_todo.py` prepara esa base automáticamente. No deben ejecutarse sobre la base de la aplicación.
 
 ## Validación realizada
 

@@ -27,7 +27,7 @@ export function iniciarProduccion(id) {
         ${tarjeta('Unidades registradas', tabla({ filas: d.unidades.filter(u => u.nueva).reverse(), columnas: columnasUnidad }))}`;
       const datosOrden = () => { const o = d.ordenes.find(o => o.id === valor('rp-orden')); document.getElementById('datos-orden').textContent = `Línea: ${o.linea} · Modelo: ${o.modelo} · Color: ${o.color} · Cliente: ${o.cliente}`; };
       datosOrden(); c.evento('#rp-orden', 'change', datosOrden);
-      if (puede) c.evento('#form-produccion', 'submit', () => c.escribir('registrarUnidad', { orden: valor('rp-orden'), turno: valor('rp-turno'), lote: valor('rp-lote'), serie: valor('rp-serie') }, d.real ? 'Unidad ensamblada guardada en PostgreSQL. Pendiente de Pruebas funcionales y Calidad.' : 'Unidad registrada. Ya está disponible en Prueba funcional.'));
+      if (puede) c.evento('#form-produccion', 'submit', () => c.escribir('registrarUnidad', { orden: valor('rp-orden'), turno: valor('rp-turno'), lote: valor('rp-lote'), serie: valor('rp-serie') }, 'Unidad registrada. Ya está disponible en Prueba funcional.'));
       return;
     }
     if (vista === 'registrar-incidencia') {

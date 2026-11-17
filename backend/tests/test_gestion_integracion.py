@@ -85,7 +85,7 @@ def test_lecturas_reales_y_permisos(datos):
         r = llamar(d, 'GET', ruta)
         assert r.status_code == 200, (ruta, r.text)
     roles = llamar(d, 'GET', '/roles').json()
-    assert not any(p['area'] in {'calidad', 'prueba-funcional'} for p in roles['pantallas'])
+    assert {'calidad', 'prueba-funcional'}.issubset({p['area'] for p in roles['pantallas']})
 
 
 def test_registro_ensamble_duplicado_y_calidad_intacta(datos):

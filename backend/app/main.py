@@ -10,6 +10,8 @@ from app.modules.almacen.router import router as almacen_router
 from app.modules.almacen import service as almacen_service
 from app.core.sesiones import router as sesiones_router
 from app.modules.gestion import router as gestion_router
+from app.modules.calidad.router import router as calidad_router
+from app.modules.pruebas import router as pruebas_router
 
 app = FastAPI(
     title="NOVA SOUND API",
@@ -20,6 +22,8 @@ app = FastAPI(
 app.include_router(almacen_router)
 app.include_router(sesiones_router)
 app.include_router(gestion_router)
+app.include_router(calidad_router)
+app.include_router(pruebas_router)
 
 @app.get("/api/v1")
 def inicio():

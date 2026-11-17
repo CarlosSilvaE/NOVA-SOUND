@@ -40,6 +40,15 @@ def main():
             assert not cx.execute(text('SELECT 1 FROM catalogos_web WHERE id_original IS NOT NULL GROUP BY tipo,id_original HAVING count(*)>1')).first()
             permisos = scalar("SELECT permisos FROM roles WHERE nombre='Gerente de Planta' LIMIT 1")
             assert 'gerencia/autorizaciones' not in permisos, 'La migración no debe sobrescribir permisos editados.'
+            full = cx.execute(text('''SELECT u.id_unidad,u.estado,c.estado AS caja,e.estado AS embarque,e.contenedor
+                FROM unidades u JOIN cajas c USING(id_caja) JOIN embarques e USING(id_embarque)
+                WHERE u.numero_serie='QA-FULL-WEB-001' ''')).mappings().one()
+            assert full['estado'] == full['caja'] == 'EMBARCADA' and full['embarque'] == 'ENVIADO'
+            assert full['contenedor'] == 'CONT-QA-FULL'
+            assert scalar('SELECT count(*) FROM pruebas WHERE id_unidad=:id',id=full['id_unidad']) == 2
+            assert scalar("SELECT count(*) FROM retrabajo WHERE id_unidad=:id AND resultado='Corregido'",id=full['id_unidad']) == 1
+            assert scalar("SELECT count(*) FROM calidad WHERE id_unidad=:id AND estado='LIBERADA'",id=full['id_unidad']) == 1
+            assert 'calidad/reportes-de-calidad' not in scalar("SELECT permisos FROM roles WHERE nombre='Inspector de Calidad' LIMIT 1")
             print('SQL verificado: embarque enviado; producción, incidencia y reapertura persistidas; unidades nuevas sin pruebas ni inspecciones inventadas.')
             return
         ids = []

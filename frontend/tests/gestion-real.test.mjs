@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { probarCalidad } from './calidad-flujo.mjs';
 const fixture = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const base = new URL(fixture.baseURL);
 assert.equal(fixture.entorno, 'pruebas');
@@ -42,7 +43,7 @@ try {
   const login=async(user,password)=>{await go('index.html');await evaluate("import('/js/session.js').then(s=>s.cerrarSesion())");await fill('#modo-login','almacen');await fill('#numEmpleado',user);await fill('#contrasena',password);await click('#entrar');await wait("location.pathname.includes('/pages/')");assert.equal(await evaluate("JSON.parse(sessionStorage.getItem('novasound.sesion')).modo"),'real');};
   await login(fixture.admin, fixture.passwordAdmin);
   const roles=await api('rolesPermisos');
-  assert.ok(!roles.pantallas.some(p=>['calidad','prueba-funcional'].includes(p.area)));
+  assert.ok(['calidad','prueba-funcional'].every(area=>roles.pantallas.some(p=>p.area===area)));
   for(const p of roles.pantallas.filter(p=>['produccion','gerencia','sistemas'].includes(p.area) && p.id!=='sistemas/ver-ticket')){
     await go(`pages/${p.id}.html`);
     const contenido=await text();
@@ -101,6 +102,7 @@ try {
   await api('operar','registrarUnidad',{orden:String(fixture.orden),turno:1,lote:'QA-PROD-WEB',serie:'QA-PROD-WEB-002'},'produccion');
   assert.ok((await api('consultarOperacion','produccion')).unidades.some(u=>u.serie==='QA-PROD-WEB-002'));
   paso('Gerencia autoriza con otra cuenta; vuelve la captura y existe trazabilidad real');
+  await probarCalidad({fixture,api,go,login,wait,click,fill,text,evaluate,paso,report});
   assert.equal(await evaluate("localStorage.getItem('novasound.mock.operacion')"),null);
   assert.deepEqual(report.errores,[]);
   paso('Flujo completo usa API sin guardar operaciones en la demo');

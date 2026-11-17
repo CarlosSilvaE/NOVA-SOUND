@@ -4,7 +4,7 @@
 // false = las pantallas llaman al back real en API_BASE_URL.
 export const USE_MOCKS = true;
 
-// Las sesiones de Almacén usan PostgreSQL; las demás áreas conservan la demo.
+// El acceso conectado usa PostgreSQL en todas las áreas. El acceso demo sigue independiente.
 export const ALMACEN_API = true;
 
 // Docker sirve frontend y API en http://localhost:8000 (mismo origen).

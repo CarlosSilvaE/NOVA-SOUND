@@ -1,6 +1,6 @@
 """Producción, Gerencia y Sistemas sobre PostgreSQL.
 
-Los módulos de Prueba funcional y Calidad conservan su implementación demo.
+Comparte unidades y trazabilidad con Calidad y Pruebas funcionales.
 Las consultas gerenciales leen sus registros existentes sin modificarlos.
 """
 import json
@@ -170,7 +170,7 @@ def cierres(cx):
 
 @router.get('/opciones')
 def opciones(actor=Depends(actor_actual)):
-    exigir_alguna(actor, PRODUCCION + GERENCIA + SISTEMAS)
+    exigir_alguna(actor, list(PANTALLAS))
     with db() as cx:
         cat = leer_catalogos(cx, True)
         return {'lineas': [i['codigo'] for i in cat['lineas']['items']],
@@ -398,12 +398,12 @@ def dashboard(turno: int | None = None, linea: str = '', modelo: str = '', orden
             for key, value in o['cajas'].items():
                 g[key] += value
         # Datos existentes de Calidad: lectura gerencial; la captura de Calidad sigue sin conectarse.
-        defectos = todos(cx, '''SELECT cat.nombre AS categoria,COALESCE(d.causa,'Sin causa registrada') AS defecto,count(*) AS cantidad,
+        defectos = todos(cx, '''SELECT cat.nombre AS categoria,COALESCE(d.nombre,d.causa,'Sin causa registrada') AS defecto,count(*) AS cantidad,
             u.id_turno AS turno,COALESCE(c.codigo,'L'||u.id_linea) AS linea,m.nombre AS modelo,o.id_orden::text AS orden
             FROM defectos d JOIN cat_defectos cat USING(id_categoria) JOIN calidad q USING(id_calidad)
             JOIN unidades u ON u.id_unidad=q.id_unidad JOIN lote l USING(id_lote) JOIN ordenes o USING(id_orden)
             JOIN modelos m USING(id_modelo) LEFT JOIN catalogos_web c ON c.tipo='lineas' AND c.id_original=u.id_linea
-            WHERE q.fecha::date=CURRENT_DATE GROUP BY cat.nombre,d.causa,u.id_turno,c.codigo,u.id_linea,m.nombre,o.id_orden''')
+            WHERE q.fecha::date=CURRENT_DATE AND q.evento='INSPECCION' GROUP BY cat.nombre,d.nombre,d.causa,u.id_turno,c.codigo,u.id_linea,m.nombre,o.id_orden''')
         return {'resumen': {'meta': meta, 'producidas': reportadas, 'faltante': max(meta-reportadas, 0), 'avance': reportadas*100/meta if meta else 0},
                 'disposiciones': {k: total(k) for k in ['liberadas', 'retenidas', 'retrabajo', 'scrap']},
                 'defectos': filtrar(defectos, turno, linea, modelo, orden), 'ordenes': os, 'cajasPorCliente': list(clientes.values())}
@@ -461,6 +461,10 @@ def reporte_cierres(desde: date | None = None, hasta: date | None = None, linea:
 @router.get('/unidades/{serie}')
 def trazabilidad(serie: str, actor=Depends(actor_actual)):
     exigir(actor, 'gerencia/trazabilidad')
+    return detalle_trazabilidad(serie)
+
+
+def detalle_trazabilidad(serie):
     with db() as cx:
         u = next((u for u in unidades(cx) if (u['serie'] or '').casefold() == serie.strip().casefold()), None)
         if not u:
@@ -470,14 +474,15 @@ def trazabilidad(serie: str, actor=Depends(actor_actual)):
             eventos.append(dict(**tiempo(fecha), area=area, evento=accion, resultado=resultado or '', usuario=usuario))
         usuario = uno(cx, 'SELECT nombre FROM usuarios WHERE id_usuario=:id', id=u['id_usuario_registro']) if u['id_usuario_registro'] else None
         evento(u['fecha_hora'], 'Producción', 'Unidad ensamblada', 'ENSAMBLADA', usuario['nombre'] if usuario else 'No registrado')
-        for p in todos(cx, 'SELECT * FROM pruebas WHERE id_unidad=:id ORDER BY fecha,id_prueba', id=u['id_unidad']):
-            evento(p['fecha'], 'Prueba funcional', p['detalles_prueba'] or 'Prueba registrada', p['resultado'])
+        for p in todos(cx, 'SELECT p.*,a.nombre AS autor FROM pruebas p LEFT JOIN usuarios a ON a.id_usuario=p.id_usuario WHERE id_unidad=:id ORDER BY fecha,id_prueba', id=u['id_unidad']):
+            evento(p['fecha'], 'Prueba funcional', p['detalles_prueba'] or 'Prueba registrada', p['resultado'], p['autor'] or 'No registrado')
         for q in todos(cx, 'SELECT c.*,u.nombre AS usuario FROM calidad c JOIN usuarios u USING(id_usuario) WHERE id_unidad=:id ORDER BY fecha,id_calidad', id=u['id_unidad']):
-            evento(q['fecha'], 'Calidad', 'Inspección registrada', q['estado'], q['usuario'])
-        for r in todos(cx, 'SELECT * FROM retrabajo WHERE id_unidad=:id ORDER BY fecha,id_retrabajo', id=u['id_unidad']):
-            evento(r['fecha'], 'Calidad', r['descripcion'] or 'Retrabajo', r['resultado'])
+            evento(q['fecha'], 'Calidad', 'Retención revisada' if q['evento'] == 'RETENCION' else 'Inspección registrada', q['estado'] + (' · ' + q['observaciones'] if q['observaciones'] else ''), q['usuario'])
+        for r in todos(cx, 'SELECT r.*,a.nombre AS autor FROM retrabajo r LEFT JOIN usuarios a ON a.id_usuario=r.id_usuario WHERE id_unidad=:id ORDER BY fecha,id_retrabajo', id=u['id_unidad']):
+            if r['resultado'] is not None:
+                evento(r['fecha_fin'] or r['fecha'], 'Calidad', r['descripcion'] or 'Retrabajo', r['resultado'], r['autor'] or 'No registrado')
         for b in todos(cx, "SELECT b.*,u.nombre AS usuario FROM bitacora_general b JOIN usuarios u USING(id_usuario) WHERE tabla_afectada='unidades' AND id_registro_afectado=:id ORDER BY fecha_hora,id_bitacora", id=u['id_unidad']):
-            if b['accion'] == 'REGISTRAR_PRODUCCION':
+            if b['accion'] == 'REGISTRAR_PRODUCCION' or b['accion'].startswith(('CALIDAD_', 'PRUEBA_')):
                 continue
             try:
                 datos = json.loads(b['valor_nuevo'] or '{}')
@@ -493,7 +498,8 @@ def trazabilidad(serie: str, actor=Depends(actor_actual)):
             if c['id_embarque']:
                 e = uno(cx, 'SELECT e.*,c.nombre AS cliente FROM embarques e JOIN clientes c USING(id_cliente) WHERE id_embarque=:id', id=c['id_embarque'])
                 embarque = dict(id=str(e['id_embarque']), referencia=e['referencia'], cliente=e['cliente'], fechaSalida=e['fecha_salida'].date().isoformat() if e['fecha_salida'] else None)
-        return dict(**u, **tiempo(u['fecha_hora']), historial=sorted(eventos, key=lambda e: (e['fecha'] or '', e['hora'])), caja=caja, embarque=embarque)
+        prueba = uno(cx, 'SELECT resultados FROM pruebas WHERE id_unidad=:id ORDER BY fecha DESC,id_prueba DESC LIMIT 1', id=u['id_unidad'])
+        return dict(**u, **tiempo(u['fecha_hora']), prueba=(prueba or {}).get('resultados') or {}, historial=sorted(eventos, key=lambda e: (e['fecha'] or '', e['hora'])), caja=caja, embarque=embarque)
 
 
 class UsuarioGuardar(BaseModel):
@@ -599,7 +605,7 @@ class RolGuardar(BaseModel):
 def guardar_rol(nombre: str, datos: RolGuardar, actor=Depends(actor_actual)):
     exigir(actor, 'sistemas/roles-y-permisos', escribir=True, accion=ADMINISTRAR)
     if set(datos.permisos) - PANTALLAS - {'login/login', 'login/levantar-ticket'} or any(v not in {'ver', 'acciona'} for v in datos.permisos.values()) or set(datos.acciones)-ACCIONES:
-        error(422, 'Pantallas, niveles o acciones no válidos. Pruebas y Calidad todavía no están conectados.')
+        error(422, 'Pantallas, niveles o acciones no válidos.')
     with db() as cx:
         ejecutar(cx, "SELECT pg_advisory_xact_lock(hashtextextended('administracion-usuarios-roles',0))")
         rol = uno(cx, 'SELECT * FROM roles WHERE nombre=:n ORDER BY id_rol LIMIT 1 FOR UPDATE', n=nombre)

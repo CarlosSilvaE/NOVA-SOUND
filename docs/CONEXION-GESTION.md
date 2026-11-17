@@ -8,13 +8,13 @@ Entra a `http://localhost:8000` y selecciona **Sistema conectado a PostgreSQL**.
 - **Gerencia:** consulta indicadores, discrepancias, cierres y trazabilidad; aprueba o rechaza solicitudes según permisos.
 - **Sistemas:** administra usuarios y sus estados, roles y permisos, catálogos, capacidad de cajas y tickets.
 - **Empaque y Embarques:** conservan la conexión anterior. Las cajas nuevas usan las capacidades guardadas en Sistemas; las cajas existentes conservan su capacidad.
-- **Pruebas funcionales y Calidad:** siguen en **Demostración**, con sus cuentas y datos de ejemplo. No se mezclan con PostgreSQL. La consulta gerencial puede mostrar registros de pruebas y calidad que ya existan en la base.
+- **Pruebas funcionales y Calidad:** conectadas mediante la migración 08. Consulta [su guía](CONEXION-CALIDAD-PRUEBAS.md). El acceso de demostración sigue separado de PostgreSQL.
 
 ## Usuarios y permisos
 
 El Administrador conserva el acceso operativo anterior y recibe las nuevas áreas. Desde **Sistemas → Usuarios → Nuevo usuario**, crea las cuentas del personal y asigna su rol. Se puede usar un número de empleado o un identificador como `jperez`; la contraseña nueva requiere al menos ocho caracteres.
 
-El Operador registra producción e incidencias. El Líder de línea cierra turnos y solicita ajustes. El Subgerente o Gerente de Producción resuelve solicitudes. El Gerente de Planta consulta indicadores. Los permisos se guardan por rol y el servidor los consulta en cada petición; después de editar un rol, vuelve a iniciar sesión para actualizar sus menús. Los roles exclusivos de Calidad siguen usando el acceso de demostración.
+El Operador registra producción e incidencias. El Líder de línea cierra turnos y solicita ajustes. El Subgerente o Gerente de Producción resuelve solicitudes. El Gerente de Planta consulta indicadores. Los permisos se guardan por rol y el servidor los consulta en cada petición; después de editar un rol, vuelve a iniciar sesión para actualizar sus menús. Los roles de Calidad también utilizan el acceso conectado al aplicar la migración 08.
 
 Las contraseñas se guardan con scrypt; las contraseñas heredadas se actualizan al iniciar sesión correctamente. No se devuelven en las consultas de usuarios. Bloquear o desactivar una cuenta, cambiar su contraseña o cambiar su rol revoca sus sesiones. El formulario protege la propia cuenta administrativa para evitar un bloqueo accidental.
 
@@ -23,7 +23,7 @@ Los tickets se pueden enviar desde **¿Olvidó la contraseña?**, seleccionando 
 ## Captura, cierre y autorización
 
 1. Elige una orden existente, un turno activo, un código de lote y una serie única. La línea, el modelo, el color y el cliente proceden de la orden real.
-2. El registro crea una unidad `ENSAMBLADA`, su ensamble y la bitácora. No inventa una prueba aprobada ni una liberación de Calidad. Por eso la unidad todavía no estará disponible para empacar.
+2. El registro crea una unidad `ENSAMBLADA`, su ensamble y la bitácora. Debe aprobar Pruebas funcionales y recibir una liberación de Calidad antes de estar disponible para empacar.
 3. El Líder confirma el cierre con una nota. Se guarda la foto de los conteos y se bloquea la captura para esa fecha, línea y turno, incluso si se intenta llamar directamente a la API.
 4. El Líder solicita una corrección de conteo o una reapertura sobre el cierre de ese día, con un motivo de al menos diez caracteres.
 5. Otra persona con permiso de Gerencia aprueba o rechaza. Un rechazo exige motivo. No se permiten autoautorizaciones, decisiones repetidas ni solicitudes que hayan quedado desactualizadas.

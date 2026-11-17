@@ -153,7 +153,7 @@ function actualizarModo() {
   document.querySelector('label[for="numEmpleado"]').textContent = real ? 'Usuario o número de empleado' : 'Número de empleado';
   document.getElementById('numEmpleado').placeholder = real ? 'Ej. admin' : 'Ej. 1001';
   document.getElementById('numEmpleado').setAttribute('inputmode', real ? 'text' : 'numeric');
-  document.getElementById('ayuda-acceso').textContent = real ? 'Producción, Gerencia, Sistemas, Empaque y Embarques guardan sus cambios en PostgreSQL. Pruebas funcionales y Calidad continúan en demostración.' : 'Este acceso utiliza datos de ejemplo guardados en el navegador.';
+  document.getElementById('ayuda-acceso').textContent = real ? 'Todas las áreas utilizan PostgreSQL: Producción, Pruebas funcionales, Calidad, Empaque, Embarques, Gerencia y Sistemas.' : 'Este acceso utiliza datos de ejemplo guardados en el navegador.';
   document.querySelector('a[href*="levantar-ticket"]').href = rutaA(`pages/login/levantar-ticket.html?modo=${real ? 'real' : 'demo'}`);
   document.getElementById('ejemplos').hidden = real;
 }

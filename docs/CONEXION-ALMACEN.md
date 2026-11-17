@@ -42,7 +42,7 @@ Las cajas heredadas del seed sin orden o capacidad no se transforman en cajas nu
 - El servidor comprueba el rol en las escrituras. Un supervisor no puede crear o formar cajas aunque invoque la API directamente.
 - No hay retorno automático a datos de demostración cuando falla la API: el error se muestra o se exige iniciar sesión de nuevo.
 - Las capacidades iniciales son MINI 12, SPORT 8, PRO 6 y MAX 4. Sistemas puede modificar los valores reales para cajas nuevas; las existentes conservan su capacidad. Los parámetros de la demo no cambian PostgreSQL.
-- Producción, cierres, Gerencia y Sistemas también están conectados mediante la migración 07; consulta [su guía](CONEXION-GESTION.md). Pruebas funcionales y Calidad siguen en demostración. La trazabilidad real se consulta en Gerencia o en `/api/v1/almacen/trazabilidad/{serie}`.
+- Producción, cierres, Gerencia y Sistemas también están conectados mediante la migración 07; consulta [su guía](CONEXION-GESTION.md). Pruebas funcionales y Calidad están conectadas mediante la migración 08 y [su guía](CONEXION-CALIDAD-PRUEBAS.md). La trazabilidad real se consulta en Gerencia o en `/api/v1/almacen/trazabilidad/{serie}`.
 
 ## Migración para una base existente
 

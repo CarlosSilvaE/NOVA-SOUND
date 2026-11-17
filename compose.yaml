@@ -18,6 +18,7 @@ services:
       - ./database/postgresql/05_catalogo_modelos_oficiales.sql:/docker-entrypoint-initdb.d/050_modelos.sql:ro
       - ./database/postgresql/06_integracion_frontend.sql:/docker-entrypoint-initdb.d/060_integracion_frontend.sql:ro
       - ./database/postgresql/07_produccion_sistemas_gerencia.sql:/docker-entrypoint-initdb.d/070_gestion.sql:ro
+      - ./database/postgresql/08_calidad_pruebas.sql:/docker-entrypoint-initdb.d/080_calidad_pruebas.sql:ro
       - ./database/postgresql/03_verificacion_postgresql.sql:/docker-entrypoint-initdb.d/090_verificacion.sql:ro
     healthcheck:
       # TCP espera a que termine la inicializacion, cuyo servidor usa solo socket.

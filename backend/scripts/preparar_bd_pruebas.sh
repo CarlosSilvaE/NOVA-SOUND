@@ -23,7 +23,8 @@ for sql in \
   04_modulo_almacen.sql \
   05_catalogo_modelos_oficiales.sql \
   06_integracion_frontend.sql \
-  07_produccion_sistemas_gerencia.sql
+  07_produccion_sistemas_gerencia.sql \
+  08_calidad_pruebas.sql
 do
     echo "Aplicando $sql SOLO en $DB ..."
     psql -h 127.0.0.1 -U "$ROLE" -d "$DB" -X -v ON_ERROR_STOP=1 \
